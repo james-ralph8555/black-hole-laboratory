@@ -1,0 +1,17 @@
+[package]
+name = "renderer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+simulation = { path = "../simulation" }
+
+# For rendering
+wgpu = "0.19"
+
+# For windowing and events
+winit = "0.29"
+
+# For logging
+log = "0.4"
+env_logger = "0.11"

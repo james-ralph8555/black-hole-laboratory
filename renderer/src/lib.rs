@@ -90,10 +90,7 @@ pub fn run() {
     let event_loop = EventLoop::new().unwrap();
     event_loop.set_control_flow(ControlFlow::Poll);
     let mut app = State::default();
-    match event_loop.run_app(&mut app) {
-        Ok(_) => (),
-        Err(e) => {
-            eprintln!("Error running event loop: {}", e);
-        }
+    if let Err(e) = event_loop.run_app(&mut app) {
+        eprintln!("Error running event loop: {}", e);
     }
 }

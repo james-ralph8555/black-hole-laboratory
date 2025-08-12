@@ -18,6 +18,11 @@ RUN nix-channel --add https://nixos.org/channels/nixpkgs-unstable nixpkgs && \
         nixpkgs.busybox && \
     nix-collect-garbage -d
 
+# Mark the workspace directory as safe for git operations. This is necessary
+# because the user mounting the volume (from the host) will have a different
+# UID than the root user inside the container that runs git.
+RUN git config --global --add safe.directory /app
+
 # Enable Nix flakes and the new 'nix' command experimental features.
 # The project's flake.nix requires these features to set up the
 # development and build environment for AWS Amplify.

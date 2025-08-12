@@ -14,7 +14,7 @@ build:
 	@docker build -t $(IMAGE_NAME):$(IMAGE_TAG) .
 	@echo "\n--- Building web application ---"
 	@docker run --rm -v "$(shell pwd)":/app $(IMAGE_NAME):$(IMAGE_TAG) \
-		sh -c "nix develop --command sh -c 'cd www && npm install && npm run build'"
+		sh -c "nix develop --command sh -c 'npm cache clean --force && cd www && npm install && npm run build'"
 
 # Clean up build artifacts
 clean:

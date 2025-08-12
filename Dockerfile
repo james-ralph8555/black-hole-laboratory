@@ -11,6 +11,7 @@ RUN nix-channel --add https://nixos.org/channels/nixpkgs-unstable nixpkgs && \
         nixpkgs.bash \
         nixpkgs.curl \
         nixpkgs.git \
+        nixpkgs.gnumake \
         nixpkgs.openssh \
         nixpkgs.wget \
         nixpkgs.gnutar \

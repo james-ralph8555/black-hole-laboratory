@@ -15,3 +15,14 @@ yarn-error.log*
 # Nix
 result*
 .direnv/
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*~
+*.bak
+
+# OS-generated files
+.DS_Store
+Thumbs.db

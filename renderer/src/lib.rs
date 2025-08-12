@@ -4,9 +4,9 @@ use std::rc::Rc;
 use std::sync::Arc;
 use winit::{
     application::ApplicationHandler,
-    event::{ElementState, KeyEvent, WindowEvent},
-    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
-    keyboard::{KeyCode, PhysicalKey},
+    event::{KeyEvent, WindowEvent},
+    event_loop::{ActiveEventLoop, EventLoop},
+    keyboard::PhysicalKey,
     window::{Window, WindowId},
 };
 
@@ -23,10 +23,9 @@ extern "C" {
     fn js_set_help_visible(visible: bool);
     
     #[wasm_bindgen(js_name = updateDebugInfo)]
-    fn js_update_debug_info(position: &[f32], orientation: &[f32], last_key: &str, fps: f32);
+    fn js_update_debug_info(position: &[f32], orientation: &[f32], last_key: &str, fps: f32, render_width: f32, render_height: f32);
 }
 
-use cgmath::*;
 use wgpu::util::DeviceExt;
 
 mod camera;
@@ -159,15 +158,18 @@ impl<'a> State<'a> {
             .find(|f| f.is_srgb())
             .unwrap_or(surface_caps.formats[0]);
 
-        // Use fixed resolution for consistent rendering
-        let fixed_width = 1920;
-        let fixed_height = 1080;
-
+        // Use actual window size for viewport-responsive rendering
+        // Ensure we don't configure with zero dimensions and respect texture size limits
+        let limits = device.limits();
+        let max_texture_size = limits.max_texture_dimension_2d;
+        let width = size.width.max(1).min(max_texture_size);
+        let height = size.height.max(1).min(max_texture_size);
+        
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
-            width: fixed_width,
-            height: fixed_height,
+            width,
+            height,
             present_mode: surface_caps.present_modes[0],
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
@@ -175,7 +177,8 @@ impl<'a> State<'a> {
         };
 
         #[cfg(target_arch = "wasm32")]
-        log::info!("Configuring surface with {}x{}, format: {:?}", fixed_width, fixed_height, surface_format);
+        log::info!("Requested size: {}x{}, max texture size: {}, using: {}x{}, format: {:?}", 
+                   size.width, size.height, max_texture_size, width, height, surface_format);
 
         surface.configure(&device, &config);
 
@@ -205,20 +208,20 @@ impl<'a> State<'a> {
         });
         let num_indices = quad_indices.len() as u32;
 
-        // Create camera with fixed aspect ratio matching our fixed resolution (1920x1080)
+        // Create camera with aspect ratio matching the actual window size
         // Start the camera at a good position to view the black hole
         let camera = Camera::new(
             (0.0, 0.0, -10.0),  // Start behind black hole so W moves toward it
             (0.0, 0.0, 0.0),   // Look towards the black hole at origin
             cgmath::Vector3::unit_y(),
-            1920.0 / 1080.0,  // Fixed 16:9 aspect ratio
+            width as f32 / height as f32,  // Dynamic aspect ratio
             45.0,
             0.1,
             1000.0,  // Increase far plane for space exploration
         );
 
         let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_proj(&camera, true, false, true); // Default: stars on, grid off, help on
+        camera_uniform.update_view_proj_with_resolution(&camera, true, false, false, width as f32, height as f32); // Default: stars on, grid off, help off (flash message instead)
 
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
@@ -376,9 +379,6 @@ impl<'a> State<'a> {
         }
     }
 
-    pub fn window(&self) -> &Window {
-        &self.window
-    }
 
     fn input(&mut self, event: &WindowEvent) -> bool {
         match event {
@@ -414,11 +414,18 @@ impl<'a> State<'a> {
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             self.size = new_size;
-            // Keep the surface at fixed resolution - don't change config dimensions
-            // self.config.width and height remain at 1920x1080
+            // Ensure we don't configure with zero dimensions and respect texture size limits
+            let limits = self.device.limits();
+            let max_texture_size = limits.max_texture_dimension_2d;
+            let width = new_size.width.max(1).min(max_texture_size);
+            let height = new_size.height.max(1).min(max_texture_size);
             
-            // Only reconfigure if needed for format changes, but keep same dimensions
-            // For fixed resolution rendering, we typically don't need to reconfigure on resize
+            self.config.width = width;
+            self.config.height = height;
+            self.surface.configure(&self.device, &self.config);
+            
+            // Update camera aspect ratio to match new window dimensions
+            self.camera.update_aspect_ratio(width as f32 / height as f32);
         }
     }
 
@@ -436,8 +443,15 @@ impl<'a> State<'a> {
             }
         }
 
-        // Update camera uniform with toggle states
-        self.camera_uniform.update_view_proj(&self.camera, self.camera_controller.show_stars, self.camera_controller.show_grid, self.camera_controller.show_help);
+        // Update camera uniform with toggle states and current resolution
+        self.camera_uniform.update_view_proj_with_resolution(
+            &self.camera, 
+            self.camera_controller.show_stars, 
+            self.camera_controller.show_grid, 
+            self.camera_controller.show_help,
+            self.config.width as f32,
+            self.config.height as f32
+        );
         self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
 
         // Update HTML help overlay for WASM
@@ -457,7 +471,7 @@ impl<'a> State<'a> {
                     .map(|k| format!("{:?}", k))
                     .unwrap_or_else(|| "None".to_string());
                 
-                js_update_debug_info(&position, &orientation, &last_key, self.camera_controller.fps);
+                js_update_debug_info(&position, &orientation, &last_key, self.camera_controller.fps, self.config.width as f32, self.config.height as f32);
             }
         }
 
@@ -511,8 +525,6 @@ impl<'a> State<'a> {
 struct App {
     state: Rc<RefCell<Option<State<'static>>>>,
     window: Option<Arc<Window>>,
-    #[cfg(target_arch = "wasm32")]
-    initializing: bool,
 }
 
 impl Default for App {
@@ -520,8 +532,6 @@ impl Default for App {
         Self { 
             state: Rc::new(RefCell::new(None)),
             window: None,
-            #[cfg(target_arch = "wasm32")]
-            initializing: false,
         }
     }
 }
@@ -651,7 +661,3 @@ pub fn run() {
     event_loop.run_app(&mut app).unwrap();
 }
 
-#[cfg(target_arch = "wasm32")]
-async fn initialize_wasm_state(window: Arc<Window>) -> State<'static> {
-    State::new(window).await
-}

@@ -79,7 +79,19 @@ The project uses Nix flakes for reproducible development environments:
 
 ## Deployment
 
-The project is configured for deployment on AWS Amplify using a custom Docker image defined in `Dockerfile` and build steps in `amplify.yml`. This setup leverages the Nix flake to ensure a reproducible build environment.
+The project is configured for deployment on AWS Amplify using a custom Docker build image. The deployment setup has been simplified to use Node.js and native tooling instead of Nix:
+
+### Docker Build Image (`Dockerfile`)
+- **Base**: Node.js 22.18.0-slim for compatibility with AWS Amplify
+- **Rust toolchain**: Installed via rustup with nightly toolchain
+- **WebAssembly support**: wasm-pack installed for building WASM modules
+- **Build tools**: gcc, libc6-dev, make for compiling native dependencies
+
+### Build Configuration (`amplify.yml`)
+- **Build process**: Simple npm-based build in the `www/` directory
+- **Commands**: `npm install` followed by `npm run build`
+- **Output**: Static files deployed from `/www/dist` directory
+- **Artifacts**: All files in the dist directory (`**/*`)
 
 ## Future Roadmap
 

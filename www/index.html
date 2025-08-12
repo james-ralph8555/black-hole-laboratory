@@ -72,11 +72,36 @@
                 margin: 10px 0;
                 border: 1px solid #004080;
             }
+            
+            #help-flash {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(0, 20, 40, 0.9);
+                color: #00ffff;
+                padding: 15px 25px;
+                border: 2px solid #00ffff;
+                border-radius: 10px;
+                font-family: 'Courier New', monospace;
+                font-size: 18px;
+                box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+                z-index: 1001;
+                display: none;
+                animation: helpPulse 2s ease-in-out infinite;
+            }
+            
+            @keyframes helpPulse {
+                0%, 100% { opacity: 0.8; }
+                50% { opacity: 1.0; }
+            }
         </style>
     </head>
     <body>
         <noscript>This page contains webassembly and javascript content, please enable javascript in your browser.</noscript>
         <canvas id="wasm-canvas"></canvas>
+        
+        <div id="help-flash">Press ? for help</div>
         
         <div id="help-overlay">
             <h1>🕳️ BLACK HOLE SIMULATOR</h1>
@@ -100,7 +125,7 @@
                 <div id="debug-orientation">Orientation: Yaw 270.0°, Pitch 0.0°</div>
                 <div id="debug-lastkey">Last Key: None</div>
                 <div id="debug-fps">FPS: 0.0</div>
-                <div>Renderer: Ray Tracing @ 1920x1080</div>
+                <div id="debug-resolution">Resolution: 1920x1080</div>
             </div>
             <div class="section">
                 <div class="section-title">PHYSICS:</div>

@@ -1,8 +1,6 @@
 use cgmath::*;
-use winit::{
-    event::{ElementState, KeyEvent, WindowEvent},
-    keyboard::{KeyCode, PhysicalKey},
-};
+use winit::event::ElementState;
+use winit::keyboard::KeyCode;
 
 #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
@@ -53,6 +51,10 @@ impl Camera {
 
         return OPENGL_TO_WGPU_MATRIX * proj * view;
     }
+
+    pub fn update_aspect_ratio(&mut self, aspect: f32) {
+        self.aspect = aspect;
+    }
 }
 
 #[repr(C)]
@@ -70,13 +72,16 @@ pub struct CameraUniform {
     pub show_stars: f32,  // bool as f32 (1.0 or 0.0)
     pub show_grid: f32,   // bool as f32 (1.0 or 0.0)
     pub show_help: f32,   // bool as f32 (1.0 or 0.0)
-    pub _padding5: f32,
+    pub aspect_ratio: f32,
+    pub render_width: f32,
+    pub render_height: f32,
+    pub _padding5: [f32; 2],  // Maintain 16-byte alignment
 }
 
 impl CameraUniform {
     pub fn new() -> Self {
         // Compile-time size check to ensure proper GPU buffer alignment
-        const _: () = assert!(std::mem::size_of::<CameraUniform>() == 144);
+        const _: () = assert!(std::mem::size_of::<CameraUniform>() == 160);
         use cgmath::SquareMatrix;
         Self {
             view_proj: cgmath::Matrix4::identity().into(),
@@ -90,12 +95,19 @@ impl CameraUniform {
             _padding4: 0.0,
             show_stars: 1.0,
             show_grid: 0.0,
-            show_help: 1.0,
-            _padding5: 0.0,
+            show_help: 0.0,  // Start with help hidden
+            aspect_ratio: 16.0 / 9.0,  // Default aspect ratio
+            render_width: 1920.0,
+            render_height: 1080.0,
+            _padding5: [0.0; 2],
         }
     }
 
     pub fn update_view_proj(&mut self, camera: &Camera, show_stars: bool, show_grid: bool, show_help: bool) {
+        self.update_view_proj_with_resolution(camera, show_stars, show_grid, show_help, 1920.0, 1080.0);
+    }
+
+    pub fn update_view_proj_with_resolution(&mut self, camera: &Camera, show_stars: bool, show_grid: bool, show_help: bool, width: f32, height: f32) {
         self.view_proj = camera.build_view_projection_matrix().into();
         
         // Update camera vectors for ray tracing
@@ -112,6 +124,11 @@ impl CameraUniform {
         self.show_stars = if show_stars { 1.0 } else { 0.0 };
         self.show_grid = if show_grid { 1.0 } else { 0.0 };
         self.show_help = if show_help { 1.0 } else { 0.0 };
+        
+        // Update rendering resolution and aspect ratio
+        self.aspect_ratio = width / height;
+        self.render_width = width;
+        self.render_height = height;
     }
 }
 
@@ -165,8 +182,8 @@ impl CameraController {
             touch_look_start_pos: None,
             show_stars: true,
             show_grid: false,
-            show_help: true,  // Start with help visible
-            help_startup_timer: 5.0,  // Show help for 5 seconds on startup
+            show_help: false,  // Start with help hidden (flash message shows instead)
+            help_startup_timer: 5.0,  // Timer for flash message duration
             last_key: None,
             frame_count: 0,
             fps: 0.0,
@@ -371,39 +388,4 @@ impl CameraController {
         camera.up = up;
     }
 
-    pub fn get_help_text(&self, camera: &Camera) -> String {
-        format!(
-r#"🕳️ BLACK HOLE SIMULATOR - HELP
-
-MOVEMENT CONTROLS:
-  W/A/S/D     - Move forward/left/backward/right
-  Space/Shift - Move up/down
-  Q/E         - Turn left/right
-  Mouse Drag  - Look around
-  Touch       - L/R for joystick/look
-
-VISUAL TOGGLES:
-  B - Toggle background (stars/gradient)
-  G - Toggle lat/long grid lines
-  ? - Toggle this help
-
-DEBUG INFO:
-  Position:    ({:.2}, {:.2}, {:.2})
-  Orientation: Yaw {:.1}°, Pitch {:.1}°
-  Last Key:    {:?}
-  FPS:         {:.1}
-  Renderer:    Ray Tracing @ 1920x1080
-
-PHYSICS:
-  Ray tracing through curved spacetime using
-  simplified Schwarzschild metric. Grid lines
-  show gravitational lensing distortion.
-
-Press ? to hide this help."#,
-            camera.eye.x, camera.eye.y, camera.eye.z,
-            self.yaw, self.pitch,
-            self.last_key.map(|k| format!("{:?}", k)).unwrap_or_else(|| "None".to_string()),
-            self.fps
-        )
-    }
 }

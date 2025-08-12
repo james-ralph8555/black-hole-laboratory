@@ -9,22 +9,19 @@ function setupCanvas() {
     const displayWidth = window.innerWidth;
     const displayHeight = window.innerHeight;
     
-    // Fixed internal resolution for consistent rendering performance
-    const FIXED_WIDTH = 1280;
-    const FIXED_HEIGHT = 720;
-    
     // Set the CSS size to fill the viewport
     canvas.style.width = displayWidth + 'px';
     canvas.style.height = displayHeight + 'px';
     
-    // Set fixed internal resolution
-    canvas.width = FIXED_WIDTH;
-    canvas.height = FIXED_HEIGHT;
+    // Set canvas resolution to match viewport (with device pixel ratio consideration)
+    const devicePixelRatio = window.devicePixelRatio || 1;
+    const renderWidth = Math.floor(displayWidth * devicePixelRatio);
+    const renderHeight = Math.floor(displayHeight * devicePixelRatio);
     
-    // Use CSS image-rendering for better scaling
-    canvas.style.imageRendering = 'auto';
+    canvas.width = renderWidth;
+    canvas.height = renderHeight;
     
-    console.log(`Canvas: CSS ${displayWidth}x${displayHeight}, Fixed render ${FIXED_WIDTH}x${FIXED_HEIGHT}`);
+    console.log(`Canvas: CSS ${displayWidth}x${displayHeight}, Render ${renderWidth}x${renderHeight}, DPR ${devicePixelRatio}`);
   }
   
   // Initial resize
@@ -40,21 +37,24 @@ function setupCanvas() {
 }
 
 // Help overlay management
-let helpVisible = true;
+let helpVisible = false; // Start with help hidden
+let helpFlashVisible = true; // Start with flash message visible
 let helpStartupTimer = 5000; // 5 seconds in milliseconds
 
 function setupHelpOverlay() {
   const helpOverlay = document.getElementById('help-overlay');
-  if (!helpOverlay) return;
+  const helpFlash = document.getElementById('help-flash');
+  if (!helpOverlay || !helpFlash) return;
   
-  // Show help initially
-  helpOverlay.style.display = 'block';
+  // Start with full help hidden and flash message visible
+  helpOverlay.style.display = 'none';
+  helpFlash.style.display = 'block';
   
-  // Auto-hide after startup timer
+  // Auto-hide flash message after startup timer
   setTimeout(() => {
-    if (helpStartupTimer > 0) {
-      helpOverlay.style.display = 'none';
-      helpVisible = false;
+    if (helpFlashVisible) {
+      helpFlash.style.display = 'none';
+      helpFlashVisible = false;
     }
   }, helpStartupTimer);
 }
@@ -62,27 +62,41 @@ function setupHelpOverlay() {
 // Global functions for WASM to call
 window.toggleHelp = function() {
   const helpOverlay = document.getElementById('help-overlay');
-  if (!helpOverlay) return;
+  const helpFlash = document.getElementById('help-flash');
+  if (!helpOverlay || !helpFlash) return;
   
   helpVisible = !helpVisible;
   helpOverlay.style.display = helpVisible ? 'block' : 'none';
   
-  // Disable auto-hide when manually toggled
+  // Hide flash message when user manually toggles help
+  if (helpFlashVisible) {
+    helpFlash.style.display = 'none';
+    helpFlashVisible = false;
+  }
+  
+  // Disable auto-hide timer when manually toggled
   helpStartupTimer = 0;
 };
 
 window.setHelpVisible = function(visible) {
   const helpOverlay = document.getElementById('help-overlay');
-  if (!helpOverlay) return;
+  const helpFlash = document.getElementById('help-flash');
+  if (!helpOverlay || !helpFlash) return;
   
   helpVisible = visible;
   helpOverlay.style.display = helpVisible ? 'block' : 'none';
   
-  // Disable auto-hide when manually set
+  // Hide flash message when help state is manually set
+  if (helpFlashVisible) {
+    helpFlash.style.display = 'none';
+    helpFlashVisible = false;
+  }
+  
+  // Disable auto-hide timer when manually set
   helpStartupTimer = 0;
 };
 
-window.updateDebugInfo = function(position, orientation, lastKey, fps) {
+window.updateDebugInfo = function(position, orientation, lastKey, fps, renderWidth, renderHeight) {
   document.getElementById('debug-position').textContent = 
     `Position: (${position[0].toFixed(2)}, ${position[1].toFixed(2)}, ${position[2].toFixed(2)})`;
   document.getElementById('debug-orientation').textContent = 
@@ -91,6 +105,8 @@ window.updateDebugInfo = function(position, orientation, lastKey, fps) {
     `Last Key: ${lastKey || 'None'}`;
   document.getElementById('debug-fps').textContent = 
     `FPS: ${fps.toFixed(1)}`;
+  document.getElementById('debug-resolution').textContent = 
+    `Resolution: ${renderWidth.toFixed(0)}x${renderHeight.toFixed(0)}`;
 };
 
 async function main() {

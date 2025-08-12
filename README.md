@@ -54,9 +54,18 @@ This command will generate all necessary files in the `www/dist` directory. Uplo
 
 ### Deploying with AWS Amplify
 
-This project is configured for automated builds and deployments on [AWS Amplify](https://aws.amazon.com/amplify/) using a custom Docker image.
+This project is configured for automated builds and deployments on [AWS Amplify](https://aws.amazon.com/amplify/) using a custom Docker build image.
 
-1.  **Build and Push the Custom Docker Image**: The `Dockerfile` in the root of the repository defines a build environment with Nix installed and Flakes enabled. Build this image and push it to a public container registry like Docker Hub or Amazon ECR.
+#### Custom Build Image
+The `Dockerfile` defines a Node.js 22.18.0-slim based build environment with:
+- Rust toolchain (nightly) installed via rustup
+- wasm-pack for WebAssembly compilation
+- Build tools (gcc, libc6-dev, make) for native dependencies
+
+*Note: While the project includes a Nix flake for reproducible local development, the deployment uses a simplified Node.js-based Docker image for AWS Amplify compatibility.*
+
+#### Deployment Steps
+1.  **Build and Push the Custom Docker Image**: 
     ```bash
     # Example for Docker Hub
     docker build -t your-dockerhub-username/black-hole-sim-build:latest .
@@ -65,10 +74,12 @@ This project is configured for automated builds and deployments on [AWS Amplify]
 
 2.  **Connect to Amplify**: In the AWS Amplify Console, connect this Git repository.
 3.  **Configure Build Settings**:
-    - When prompted, go to **Advanced settings** in the build configuration step.
-    - Provide the URL to your custom build image (e.g., `your-dockerhub-username/black-hole-sim-build:latest`).
-    - Amplify will automatically detect and use the `amplify.yml` file from the repository for build commands.
-4.  **Deploy**: Save and deploy. Amplify will pull your custom image, run the build commands specified in `amplify.yml`, and host the static artifacts from the `www/dist` directory.
+    - Go to **Advanced settings** in the build configuration step
+    - Provide the URL to your custom build image (e.g., `your-dockerhub-username/black-hole-sim-build:latest`)
+    - Amplify will use the `amplify.yml` file which runs:
+      - `cd www && npm install && npm run build`
+      - Deploys static files from `/www/dist`
+4.  **Deploy**: Amplify will pull your custom image, run the build commands, and host the static artifacts.
 
 ### Alternative (without Nix)
 ```bash
@@ -90,7 +101,6 @@ npm run serve
 npm run build
 ```
 
-![Black Hole Simulation](https://placehold.co/800x400/000000/FFFFFF?text=Black+Hole+Simulation)
 
 ## Core Concepts
 

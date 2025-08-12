@@ -4,8 +4,11 @@ const WasmPackPlugin = require("@wasm-tool/wasm-pack-plugin");
 
 const dist = path.resolve(__dirname, "dist");
 
-module.exports = {
-  mode: "production",
+module.exports = (env, argv) => {
+  const isProduction = argv.mode === 'production';
+  
+  return {
+  mode: isProduction ? "production" : "development",
   entry: {
     index: "./bootstrap.js",
   },
@@ -28,11 +31,12 @@ module.exports = {
 
     new WasmPackPlugin({
       crateDirectory: path.resolve(__dirname, "../renderer"),
-      extraArgs: "--target web",
+      extraArgs: `--target web${isProduction ? ' --release' : ''}`,
       outDir: path.resolve(__dirname, "pkg"),
     }),
   ],
   experiments: {
     asyncWebAssembly: true,
   },
+  };
 };

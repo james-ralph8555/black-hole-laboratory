@@ -13,7 +13,10 @@ struct CameraUniform {
     show_stars: f32,
     show_grid: f32,
     show_help: f32,
-    _padding5: f32,
+    aspect_ratio: f32,
+    render_width: f32,
+    render_height: f32,
+    _padding5: vec2<f32>,
 };
 @group(0) @binding(0)
 var<uniform> camera: CameraUniform;
@@ -162,11 +165,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     
     // Generate ray direction using camera basis vectors
     // This creates proper perspective projection for ray tracing
-    let aspect_ratio = 1920.0 / 1080.0;
     let fov_scale = tan(45.0 * 0.5 * 3.14159 / 180.0); // 45 degree FOV
     
     let ray_dir_camera_space = vec3<f32>(
-        screen_pos.x * aspect_ratio * fov_scale,
+        screen_pos.x * camera.aspect_ratio * fov_scale,
         screen_pos.y * fov_scale,
         -1.0
     );

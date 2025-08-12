@@ -26,8 +26,8 @@ module.exports = {
     }),
 
     new WasmPackPlugin({
-      crateDirectory: path.resolve(__dirname, ".."),
-      extraArgs: "--target web -- -p renderer",
+      crateDirectory: path.resolve(__dirname, "../renderer"),
+      extraArgs: "--target web",
       outDir: path.resolve(__dirname, "pkg"),
     }),
   ],

@@ -1,31 +1,36 @@
-# Use the official NixOS Nix image as the base.
-# This image provides the `nix` command-line tool.
-FROM nixpkgs/nix-unstable:nixos-25.05-x86_64-linux
+# Use Amazon Linux 2 as the base image. This is a glibc-based distribution
+# compatible with AWS Amplify's requirements.
+FROM amazonlinux:2
 
 # Install dependencies required by AWS Amplify's build environment.
 # See: https://docs.aws.amazon.com/amplify/latest/userguide/custom-build-image.html
-# We use nix-env to install them into the container's environment.
-RUN nix-channel --add https://nixos.org/channels/nixpkgs-unstable nixpkgs && \
-    nix-channel --update && \
-    nix-env -iA \
-        nixpkgs.bash \
-        nixpkgs.curl \
-        nixpkgs.git \
-        nixpkgs.gnumake \
-        nixpkgs.openssh \
-        nixpkgs.wget \
-        nixpkgs.gnutar \
-        nixpkgs.nodejs_22 \
-        nixpkgs.busybox && \
-    nix-collect-garbage -d
+# We also include build tools like gcc and make.
+RUN yum update -y && \
+    yum install -y \
+        bash \
+        curl \
+        git \
+        make \
+        openssh-clients \
+        tar \
+        wget \
+        gcc \
+        gzip \
+        which && \
+    yum clean all
 
-# Create a symlink for curl in /bin, as some scripts expect it there.
-# RUN ln -s /root/.nix-profile/bin/curl /bin/curl
-#
+# Install Node.js v22 and npm using the official NodeSource repository.
+# This is required for frontend builds and tooling.
+RUN curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - && \
+    yum install -y nodejs
 
-# Add the Nix profile's bin directory to the PATH. This makes packages installed
-# with `nix-env` (like npm) available in the shell.
-ENV PATH /root/.nix-profile/bin:$PATH
+# Install Rust using rustup, the standard Rust toolchain installer.
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+# Add cargo to the PATH for subsequent RUN commands and for the container's environment.
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Install wasm-pack for building Rust-based WebAssembly packages.
+RUN curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
 # Mark the workspace directory as safe for git operations. This is necessary
 # because the user mounting the volume (from the host) will have a different
@@ -33,12 +38,6 @@ ENV PATH /root/.nix-profile/bin:$PATH
 RUN git config --global --add safe.directory /app
 
 WORKDIR /app
-
-# Enable Nix flakes and the new 'nix' command experimental features.
-# The project's flake.nix requires these features to set up the
-# development and build environment for AWS Amplify.
-RUN mkdir -p /etc/nix
-RUN echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf
 
 # Set the entrypoint for the container. AWS Amplify's build runner expects
 # to be able to run commands using bash.

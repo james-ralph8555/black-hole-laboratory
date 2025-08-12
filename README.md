@@ -4,8 +4,50 @@ This project is a real-time, physically-accurate black hole simulator that runs 
 
 The core of the project is separated into two main components: a physics simulation crate and a rendering crate.
 
-*   **`simulation` crate**: Handles the heavy lifting of general relativity, solving the geodesic equations to determine how light travels.
-*   **`renderer` crate**: Uses `wgpu` to create the visuals, tracing rays for each pixel on the screen and coloring them based on the results from the simulation.
+*   **`simulation` crate**: Handles the heavy lifting of general relativity, solving the geodesic equations to determine how light travels. (Currently placeholder implementation)
+*   **`renderer` crate**: Uses `wgpu` to create the visuals, currently featuring a functional 3D renderer with camera controls. Will eventually trace rays for each pixel on the screen based on results from the simulation.
+
+## Current Status
+
+The project now has a working 3D graphics foundation:
+- ✅ Cross-platform wgpu renderer (native + WebAssembly)
+- ✅ Camera system with keyboard controls (WASD + Space/Shift)
+- ✅ Graphics pipeline with vertex/fragment shaders
+- ✅ Vertex buffer rendering with indexed geometry
+- ⏳ Physics simulation (placeholder)
+- ⏳ Ray tracing implementation (future work)
+
+## Quick Start
+
+### Prerequisites
+- [Nix](https://nixos.org/download.html) (recommended for reproducible environment)
+- Or: Rust toolchain with wasm32 target, Node.js 22+, wasm-pack
+
+### Running the Project
+
+```bash
+# Enter development environment (with Nix)
+nix develop
+
+# Build and start the web server
+npm run build
+npm run serve
+
+# Open browser to http://localhost:8080
+# Use WASD keys to move camera, Space/Shift for up/down
+```
+
+### Alternative (without Nix)
+```bash
+# Ensure wasm32 target is installed
+rustup target add wasm32-unknown-unknown
+
+# Install wasm-pack
+cargo install wasm-pack
+
+# Build and serve
+cd www && npm install && npm run build && npm run serve
+```
 
 ![Black Hole Simulation](https://placehold.co/800x400/000000/FFFFFF?text=Black+Hole+Simulation)
 
@@ -85,13 +127,17 @@ The project is structured as a Rust workspace to maintain a clean separation of 
 *   **Responsibilities**: All rendering and user interaction logic.
 *   The core logic is in `src/lib.rs`, which is compiled to WebAssembly to run in the browser.
 *   A thin `src/main.rs` binary is included to run the application natively for development and testing.
-*   Uses `wgpu` for cross-platform graphics.
-*   Initializes a graphics device and sets up a render pipeline.
-*   Creates a simple scene consisting of a single, screen-sized quad.
-*   The core logic is in a fragment shader that performs the ray tracing. For each pixel, the shader:
-    *   Calculates the initial direction of a light ray.
-    *   Integrates the ray's path along its geodesic.
-    *   Determines the final state of the ray and writes the appropriate color to the screen.
+*   Uses `wgpu` for cross-platform graphics with WebGL backend for web.
+*   **Current implementation**: 
+    *   Full graphics pipeline with vertex/fragment shaders
+    *   Camera system with view/projection matrices (`src/camera.rs`)
+    *   Keyboard input handling (WASD movement + Space/Shift for up/down)
+    *   WASM-compatible async initialization and timing
+    *   Vertex buffer rendering with indexed geometry
+*   **Future**: Fragment shader ray tracing. For each pixel, the shader will:
+    *   Calculate the initial direction of a light ray.
+    *   Integrate the ray's path along its geodesic.
+    *   Determine the final state of the ray and write the appropriate color to the screen.
 
 ## Roadmap & Future Improvements
 

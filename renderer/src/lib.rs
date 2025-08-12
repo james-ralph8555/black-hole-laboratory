@@ -4,8 +4,9 @@ use std::rc::Rc;
 use std::sync::Arc;
 use winit::{
     application::ApplicationHandler,
-    event::WindowEvent,
+    event::{ElementState, KeyEvent, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
+    keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowId},
 };
 
@@ -15,52 +16,52 @@ use wasm_bindgen::prelude::*;
 use cgmath::*;
 use wgpu::util::DeviceExt;
 
-// Camera system
-#[rustfmt::skip]
-pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
-    1.0, 0.0, 0.0, 0.0,
-    0.0, 1.0, 0.0, 0.0,
-    0.0, 0.0, 0.5, 0.5,
-    0.0, 0.0, 0.0, 1.0,
-);
-
-struct Camera {
-    eye: cgmath::Point3<f32>,
-    target: cgmath::Point3<f32>,
-    up: cgmath::Vector3<f32>,
-    aspect: f32,
-    fovy: f32,
-    znear: f32,
-    zfar: f32,
-}
-
-impl Camera {
-    fn build_view_projection_matrix(&self) -> cgmath::Matrix4<f32> {
-        let view = cgmath::Matrix4::look_at_rh(self.eye, self.target, self.up);
-        let proj = cgmath::perspective(cgmath::Deg(self.fovy), self.aspect, self.znear, self.zfar);
-
-        return OPENGL_TO_WGPU_MATRIX * proj * view;
-    }
-}
+mod camera;
+use camera::{Camera, CameraController, CameraUniform};
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct CameraUniform {
-    view_proj: [[f32; 4]; 4],
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct Vertex {
+    position: [f32; 3],
+    tex_coords: [f32; 2],
 }
 
-impl CameraUniform {
-    fn new() -> Self {
-        use cgmath::SquareMatrix;
-        Self {
-            view_proj: cgmath::Matrix4::identity().into(),
+impl Vertex {
+    fn desc() -> wgpu::VertexBufferLayout<'static> {
+        use std::mem;
+        wgpu::VertexBufferLayout {
+            array_stride: mem::size_of::<Vertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x2,
+                },
+            ]
         }
     }
-
-    fn update_view_proj(&mut self, camera: &Camera) {
-        self.view_proj = camera.build_view_projection_matrix().into();
-    }
 }
+
+const VERTICES: &[Vertex] = &[
+    Vertex { position: [-0.0868241, 0.49240386, 0.0], tex_coords: [0.4131759, 0.00759614] },
+    Vertex { position: [-0.49513406, 0.06958647, 0.0], tex_coords: [0.0048659444, 0.43041354] },
+    Vertex { position: [-0.21918549, -0.44939706, 0.0], tex_coords: [0.28081453, 0.949397] },
+    Vertex { position: [0.35966998, -0.3473291, 0.0], tex_coords: [0.85967, 0.84732914] },
+    Vertex { position: [0.44147372, 0.2347359, 0.0], tex_coords: [0.9414737, 0.2652641] },
+];
+
+const INDICES: &[u16] = &[
+    0, 1, 4,
+    1, 2, 4,
+    2, 3, 4,
+];
+
 
 struct State<'a> {
     surface: wgpu::Surface<'a>,
@@ -70,10 +71,16 @@ struct State<'a> {
     size: winit::dpi::PhysicalSize<u32>,
     window: Arc<Window>,
     render_pipeline: wgpu::RenderPipeline,
+    vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
+    num_indices: u32,
     camera: Camera,
     camera_uniform: CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
+    camera_controller: CameraController,
+    #[cfg(not(target_arch = "wasm32"))]
+    last_render_time: std::time::Instant,
 }
 
 impl<'a> State<'a> {
@@ -160,16 +167,30 @@ impl<'a> State<'a> {
         #[cfg(target_arch = "wasm32")]
         log::info!("Surface configured successfully");
 
+        // Create vertex buffer
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(VERTICES),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            contents: bytemuck::cast_slice(INDICES),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+        let num_indices = INDICES.len() as u32;
+
         // Create camera
-        let camera = Camera {
-            eye: (0.0, 1.0, 2.0).into(),
-            target: (0.0, 0.0, 0.0).into(),
-            up: cgmath::Vector3::unit_y(),
-            aspect: width as f32 / height as f32,
-            fovy: 45.0,
-            znear: 0.1,
-            zfar: 100.0,
-        };
+        let camera = Camera::new(
+            (0.0, 1.0, 2.0),
+            (0.0, 0.0, 0.0),
+            cgmath::Vector3::unit_y(),
+            width as f32 / height as f32,
+            45.0,
+            0.1,
+            100.0,
+        );
 
         let mut camera_uniform = CameraUniform::new();
         camera_uniform.update_view_proj(&camera);
@@ -226,7 +247,7 @@ impl<'a> State<'a> {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[],
+                buffers: &[Vertex::desc()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -257,6 +278,8 @@ impl<'a> State<'a> {
             multiview: None,
         });
 
+        let camera_controller = CameraController::new(4.0);
+
         #[cfg(target_arch = "wasm32")]
         log::info!("Render pipeline created");
 
@@ -268,15 +291,35 @@ impl<'a> State<'a> {
             config,
             size,
             render_pipeline,
+            vertex_buffer,
+            index_buffer,
+            num_indices,
             camera,
             camera_uniform,
             camera_buffer,
             camera_bind_group,
+            camera_controller,
+            #[cfg(not(target_arch = "wasm32"))]
+            last_render_time: std::time::Instant::now(),
         }
     }
 
     pub fn window(&self) -> &Window {
         &self.window
+    }
+
+    fn input(&mut self, event: &WindowEvent) -> bool {
+        match event {
+            WindowEvent::KeyboardInput {
+                event: KeyEvent {
+                    physical_key: PhysicalKey::Code(key),
+                    state,
+                    ..
+                },
+                ..
+            } => self.camera_controller.process_keyboard(*key, *state),
+            _ => false,
+        }
     }
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
@@ -292,6 +335,19 @@ impl<'a> State<'a> {
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+        cfg_if! {
+            if #[cfg(target_arch = "wasm32")] {
+                // For WASM, use a fixed delta time (assuming 60fps)
+                let dt = std::time::Duration::from_millis(16);
+                self.camera_controller.update_camera(&mut self.camera, dt);
+            } else {
+                let now = std::time::Instant::now();
+                let dt = now - self.last_render_time;
+                self.last_render_time = now;
+                self.camera_controller.update_camera(&mut self.camera, dt);
+            }
+        }
+
         // Update camera uniform
         self.camera_uniform.update_view_proj(&self.camera);
         self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
@@ -330,7 +386,9 @@ impl<'a> State<'a> {
 
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            render_pass.draw(0..3, 0..1);
+            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -409,6 +467,13 @@ impl ApplicationHandler for App {
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
         if let Some(window) = &self.window {
             if window.id() == id {
+                // Process input first
+                if let Some(state) = self.state.borrow_mut().as_mut() {
+                    if state.input(&event) {
+                        return;
+                    }
+                }
+
                 match event {
                     WindowEvent::CloseRequested => event_loop.exit(),
                     WindowEvent::Resized(physical_size) => {

@@ -42,9 +42,14 @@ The project is a Rust workspace with clear separation of concerns:
 - **Dual targets**: 
   - Native binary (`src/main.rs`) for development
   - WebAssembly library (`src/lib.rs`) for web deployment
-- **Current state**: Basic wgpu setup with colored background
-- **Dependencies**: wgpu, winit, simulation crate
-- **Web integration**: Uses wasm-bindgen for browser compatibility
+- **Current state**: Functional 3D renderer with camera controls
+- **Features implemented**: 
+  - Graphics pipeline with vertex/fragment shaders
+  - Camera system with view/projection matrices
+  - WASD keyboard movement controls (+ Space/Shift for up/down)
+  - Vertex buffer rendering with indexed geometry
+- **Dependencies**: wgpu, winit, cgmath, bytemuck, simulation crate
+- **Web integration**: Uses wasm-bindgen for browser compatibility with WASM-specific async handling
 
 ### Web frontend (`www/`)
 - **Purpose**: HTML/JS wrapper for WASM module
@@ -60,6 +65,12 @@ The project uses Nix flakes for reproducible development environments:
 ## Key Implementation Details
 
 - **Graphics API**: wgpu for cross-platform rendering (native + WebGL)
+- **Camera system**: Modular camera implementation in `renderer/src/camera.rs`
+  - View/projection matrix calculations using cgmath
+  - Keyboard input handling (WASD + Space/Shift)
+  - WASM-compatible time handling for smooth movement
+- **Rendering pipeline**: Vertex/fragment shader setup with uniform buffer for camera
+- **Vertex data**: Position and texture coordinate attributes with indexed rendering
 - **Physics target**: Currently placeholder, planned for Schwarzschild black hole simulation
 - **Ray tracing approach**: Fragment shader will perform backwards ray tracing from camera
 - **Coordinate system**: Will use Kerr-Schild coordinates to avoid singularities at event horizon

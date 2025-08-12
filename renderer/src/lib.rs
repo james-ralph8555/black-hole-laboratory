@@ -24,17 +24,9 @@ impl ApplicationHandler for State {
             use winit::platform::web::WindowAttributesExtWebSys;
             let canvas = web_sys::window()
                 .and_then(|win| win.document())
-                .and_then(|doc| {
-                    let dst = doc.get_element_by_id("wasm-example")?;
-                    let canvas = doc
-                        .create_element("canvas")
-                        .ok()?
-                        .dyn_into::<web_sys::HtmlCanvasElement>()
-                        .ok()?;
-                    dst.append_child(&canvas).ok()?;
-                    Some(canvas)
-                })
-                .expect("Couldn't append canvas to document body.");
+                .and_then(|doc| doc.get_element_by_id("wasm-canvas"))
+                .and_then(|canvas| canvas.dyn_into::<web_sys::HtmlCanvasElement>().ok())
+                .expect("could not find canvas element with id 'wasm-canvas'");
             attributes = attributes.with_canvas(Some(canvas));
         }
 

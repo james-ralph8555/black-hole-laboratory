@@ -9,7 +9,9 @@ frontend:
         # Use `nix develop` to enter the environment defined in flake.nix,
         # then execute the build script within that environment. This ensures all
         # correct versions of Node.js, Rust, and wasm-pack are used.
-        - nix develop --command bash -c 'cd www && npm install && npm run build'
+        # We rely on the default shell of `nix develop --command` (/bin/sh)
+        # to avoid a hard dependency on `bash`.
+        - nix develop --command 'cd www && npm install && npm run build'
     postBuild:
       commands:
         # Login to Docker Hub using credentials stored as environment variables in Amplify

@@ -15,6 +15,7 @@ RUN nix-channel --add https://nixos.org/channels/nixpkgs-unstable nixpkgs && \
         nixpkgs.wget \
         nixpkgs.gnutar \
         nixpkgs.nodejs_22 && \
+    ln -s /root/.nix-profile/bin/bash /bin/bash && \
     nix-collect-garbage -d
 
 # Enable Nix flakes and the new 'nix' command experimental features.

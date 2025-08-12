@@ -11,7 +11,7 @@ frontend:
         # correct versions of Node.js, Rust, and wasm-pack are used.
         # We rely on the default shell of `nix develop --command` (/bin/sh)
         # to avoid a hard dependency on `bash`.
-        - nix develop --command 'cd www && npm install && npm run build'
+        - nix develop --command sh -c 'cd www && npm install && npm run build'
   artifacts:
     # Specify the directory where the build output (static files) is located.
     # Amplify will deploy the contents of this directory.

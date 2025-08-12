@@ -38,3 +38,7 @@ WORKDIR /app
 # development and build environment for AWS Amplify.
 RUN mkdir -p /etc/nix
 RUN echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf
+
+# Set the entrypoint for the container. AWS Amplify's build runner expects
+# to be able to run commands using bash.
+ENTRYPOINT ["bash", "-c"]

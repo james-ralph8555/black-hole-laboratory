@@ -2,11 +2,113 @@
 <html lang="en">
     <head>
         <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Black Hole Simulator</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            
+            html, body {
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
+                background: #000;
+            }
+            
+            #wasm-canvas {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                display: block;
+                background: #000;
+                object-fit: contain; /* Maintain aspect ratio and fit within viewport */
+            }
+            
+            #help-overlay {
+                position: fixed;
+                top: 20px;
+                left: 20px;
+                background: rgba(0, 20, 40, 0.95);
+                color: #00ffff;
+                padding: 20px;
+                border: 2px solid #00ffff;
+                border-radius: 10px;
+                font-family: 'Courier New', monospace;
+                font-size: 14px;
+                line-height: 1.4;
+                max-width: 500px;
+                box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+                z-index: 1000;
+                display: none;
+                white-space: pre-line;
+            }
+            
+            #help-overlay h1 {
+                margin: 0 0 15px 0;
+                color: #ffff00;
+                font-size: 16px;
+                text-align: center;
+            }
+            
+            #help-overlay .section {
+                margin-bottom: 12px;
+            }
+            
+            #help-overlay .section-title {
+                color: #00ffaa;
+                font-weight: bold;
+                margin-bottom: 5px;
+            }
+            
+            #help-overlay .debug-info {
+                background: rgba(0, 40, 80, 0.7);
+                padding: 8px;
+                border-radius: 5px;
+                margin: 10px 0;
+                border: 1px solid #004080;
+            }
+        </style>
     </head>
     <body>
         <noscript>This page contains webassembly and javascript content, please enable javascript in your browser.</noscript>
         <canvas id="wasm-canvas"></canvas>
+        
+        <div id="help-overlay">
+            <h1>🕳️ BLACK HOLE SIMULATOR</h1>
+            <div class="section">
+                <div class="section-title">MOVEMENT CONTROLS:</div>
+                <div>W/A/S/D     - Move forward/left/backward/right</div>
+                <div>Space/Shift - Move up/down</div>
+                <div>Q/E         - Turn left/right</div>
+            </div>
+            <div class="section">
+                <div class="section-title">VISUAL TOGGLES:</div>
+                <div>B - Toggle background (stars/gradient)</div>
+                <div>G - Toggle lat/long grid lines</div>
+                <div>? - Toggle this help</div>
+            </div>
+            <div class="debug-info">
+                <div class="section-title">DEBUG INFO:</div>
+                <div id="debug-position">Position: (0.00, 0.00, 10.00)</div>
+                <div id="debug-orientation">Orientation: Yaw 270.0°, Pitch 0.0°</div>
+                <div id="debug-lastkey">Last Key: None</div>
+                <div id="debug-fps">FPS: 0.0</div>
+                <div>Renderer: Ray Tracing @ 1920x1080</div>
+            </div>
+            <div class="section">
+                <div class="section-title">PHYSICS:</div>
+                <div>Ray tracing through curved spacetime using simplified Schwarzschild metric. Grid lines show gravitational lensing distortion.</div>
+            </div>
+            <div style="text-align: center; margin-top: 15px; color: #888;">
+                Press ? to hide this help
+            </div>
+        </div>
+        
         <script type="module" src="./index.js"></script>
     </body>
 </html>

@@ -13,11 +13,34 @@ use winit::{
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_name = toggleHelp)]
+    fn js_toggle_help();
+    
+    #[wasm_bindgen(js_name = setHelpVisible)]
+    fn js_set_help_visible(visible: bool);
+    
+    #[wasm_bindgen(js_name = updateDebugInfo)]
+    fn js_update_debug_info(position: &[f32], orientation: &[f32], last_key: &str, fps: f32);
+}
+
 use cgmath::*;
 use wgpu::util::DeviceExt;
 
 mod camera;
+mod geometry;
 use camera::{Camera, CameraController, CameraUniform};
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct BlackHoleUniform {
+    /// Position of black hole in world space
+    position: [f32; 3],
+    /// Mass of black hole
+    mass: f32,
+}
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -48,19 +71,6 @@ impl Vertex {
     }
 }
 
-const VERTICES: &[Vertex] = &[
-    Vertex { position: [-0.0868241, 0.49240386, 0.0], tex_coords: [0.4131759, 0.00759614] },
-    Vertex { position: [-0.49513406, 0.06958647, 0.0], tex_coords: [0.0048659444, 0.43041354] },
-    Vertex { position: [-0.21918549, -0.44939706, 0.0], tex_coords: [0.28081453, 0.949397] },
-    Vertex { position: [0.35966998, -0.3473291, 0.0], tex_coords: [0.85967, 0.84732914] },
-    Vertex { position: [0.44147372, 0.2347359, 0.0], tex_coords: [0.9414737, 0.2652641] },
-];
-
-const INDICES: &[u16] = &[
-    0, 1, 4,
-    1, 2, 4,
-    2, 3, 4,
-];
 
 
 struct State<'a> {
@@ -79,6 +89,11 @@ struct State<'a> {
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     camera_controller: CameraController,
+    black_hole: simulation::VolumetricMass,
+    last_help_state: bool,
+    black_hole_uniform: BlackHoleUniform,
+    black_hole_buffer: wgpu::Buffer,
+    black_hole_bind_group: wgpu::BindGroup,
     #[cfg(not(target_arch = "wasm32"))]
     last_render_time: std::time::Instant,
 }
@@ -144,15 +159,15 @@ impl<'a> State<'a> {
             .find(|f| f.is_srgb())
             .unwrap_or(surface_caps.formats[0]);
 
-        // Ensure we have valid dimensions
-        let width = if size.width == 0 { 1 } else { size.width };
-        let height = if size.height == 0 { 1 } else { size.height };
+        // Use fixed resolution for consistent rendering
+        let fixed_width = 1920;
+        let fixed_height = 1080;
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
-            width,
-            height,
+            width: fixed_width,
+            height: fixed_height,
             present_mode: surface_caps.present_modes[0],
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
@@ -160,40 +175,50 @@ impl<'a> State<'a> {
         };
 
         #[cfg(target_arch = "wasm32")]
-        log::info!("Configuring surface with {}x{}, format: {:?}", width, height, surface_format);
+        log::info!("Configuring surface with {}x{}, format: {:?}", fixed_width, fixed_height, surface_format);
 
         surface.configure(&device, &config);
 
         #[cfg(target_arch = "wasm32")]
         log::info!("Surface configured successfully");
 
+        // Create full-screen quad for ray tracing
+        let quad_vertices = vec![
+            Vertex { position: [-1.0, -1.0, 0.0], tex_coords: [0.0, 1.0] },
+            Vertex { position: [ 1.0, -1.0, 0.0], tex_coords: [1.0, 1.0] },
+            Vertex { position: [ 1.0,  1.0, 0.0], tex_coords: [1.0, 0.0] },
+            Vertex { position: [-1.0,  1.0, 0.0], tex_coords: [0.0, 0.0] },
+        ];
+        let quad_indices = vec![0u16, 1, 2, 0, 2, 3];
+        
         // Create vertex buffer
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(VERTICES),
+            contents: bytemuck::cast_slice(&quad_vertices),
             usage: wgpu::BufferUsages::VERTEX,
         });
 
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(INDICES),
+            contents: bytemuck::cast_slice(&quad_indices),
             usage: wgpu::BufferUsages::INDEX,
         });
-        let num_indices = INDICES.len() as u32;
+        let num_indices = quad_indices.len() as u32;
 
-        // Create camera
+        // Create camera with fixed aspect ratio matching our fixed resolution (1920x1080)
+        // Start the camera at a good position to view the black hole
         let camera = Camera::new(
-            (0.0, 1.0, 2.0),
-            (0.0, 0.0, 0.0),
+            (0.0, 0.0, -10.0),  // Start behind black hole so W moves toward it
+            (0.0, 0.0, 0.0),   // Look towards the black hole at origin
             cgmath::Vector3::unit_y(),
-            width as f32 / height as f32,
+            1920.0 / 1080.0,  // Fixed 16:9 aspect ratio
             45.0,
             0.1,
-            100.0,
+            1000.0,  // Increase far plane for space exploration
         );
 
         let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_proj(&camera);
+        camera_uniform.update_view_proj(&camera, true, false, true); // Default: stars on, grid off, help on
 
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
@@ -205,7 +230,7 @@ impl<'a> State<'a> {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -228,6 +253,48 @@ impl<'a> State<'a> {
             label: Some("camera_bind_group"),
         });
 
+        // Create default black hole for the simulation
+        let black_hole = simulation::create_default_black_hole();
+
+        // Create black hole uniform
+        let black_hole_uniform = BlackHoleUniform {
+            position: black_hole.position,
+            mass: black_hole.mass,
+        };
+
+        let black_hole_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("BlackHole Buffer"),
+            contents: bytemuck::cast_slice(&[black_hole_uniform]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let black_hole_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }
+            ],
+            label: Some("black_hole_bind_group_layout"),
+        });
+
+        let black_hole_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &black_hole_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: black_hole_buffer.as_entire_binding(),
+                }
+            ],
+            label: Some("black_hole_bind_group"),
+        });
+
         // Create the shader module
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
@@ -237,7 +304,7 @@ impl<'a> State<'a> {
         // Create the render pipeline
         let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[&camera_bind_group_layout],
+            bind_group_layouts: &[&camera_bind_group_layout, &black_hole_bind_group_layout],
             push_constant_ranges: &[],
         });
 
@@ -299,6 +366,11 @@ impl<'a> State<'a> {
             camera_buffer,
             camera_bind_group,
             camera_controller,
+            black_hole,
+            last_help_state: true,
+            black_hole_uniform,
+            black_hole_buffer,
+            black_hole_bind_group,
             #[cfg(not(target_arch = "wasm32"))]
             last_render_time: std::time::Instant::now(),
         }
@@ -325,12 +397,11 @@ impl<'a> State<'a> {
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             self.size = new_size;
-            self.config.width = new_size.width;
-            self.config.height = new_size.height;
-            self.surface.configure(&self.device, &self.config);
-
-            // Update camera aspect ratio
-            self.camera.aspect = new_size.width as f32 / new_size.height as f32;
+            // Keep the surface at fixed resolution - don't change config dimensions
+            // self.config.width and height remain at 1920x1080
+            
+            // Only reconfigure if needed for format changes, but keep same dimensions
+            // For fixed resolution rendering, we typically don't need to reconfigure on resize
         }
     }
 
@@ -348,9 +419,30 @@ impl<'a> State<'a> {
             }
         }
 
-        // Update camera uniform
-        self.camera_uniform.update_view_proj(&self.camera);
+        // Update camera uniform with toggle states
+        self.camera_uniform.update_view_proj(&self.camera, self.camera_controller.show_stars, self.camera_controller.show_grid, self.camera_controller.show_help);
         self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
+
+        // Update HTML help overlay for WASM
+        #[cfg(target_arch = "wasm32")]
+        {
+            // Update help overlay when state changes
+            if self.camera_controller.show_help != self.last_help_state {
+                self.last_help_state = self.camera_controller.show_help;
+                js_set_help_visible(self.camera_controller.show_help);
+            }
+            
+            // Update debug info continuously when help is visible
+            if self.camera_controller.show_help {
+                let position = [self.camera.eye.x, self.camera.eye.y, self.camera.eye.z];
+                let orientation = [self.camera_controller.yaw, self.camera_controller.pitch];
+                let last_key = self.camera_controller.last_key
+                    .map(|k| format!("{:?}", k))
+                    .unwrap_or_else(|| "None".to_string());
+                
+                js_update_debug_info(&position, &orientation, &last_key, self.camera_controller.fps);
+            }
+        }
 
         let output = self.surface.get_current_texture()?;
         let view = output
@@ -386,6 +478,7 @@ impl<'a> State<'a> {
 
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            render_pass.set_bind_group(1, &self.black_hole_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
@@ -444,8 +537,8 @@ impl ApplicationHandler for App {
 
         #[cfg(target_arch = "wasm32")]
         {
-            use winit::dpi::PhysicalSize;
-            let _ = window.request_inner_size(PhysicalSize::new(450, 400));
+            // For web, let the canvas size be controlled by CSS and JavaScript
+            // The canvas will automatically scale to viewport size
         }
 
         cfg_if! {
@@ -529,6 +622,12 @@ pub fn run() {
     }
 
     println!("{}", simulation::get_placeholder_string());
+    
+    #[cfg(target_arch = "wasm32")]
+    web_sys::console::log_1(&"🕳️ BLACK HOLE SIMULATOR LOADED! Press ? to toggle help overlay.".into());
+    
+    #[cfg(not(target_arch = "wasm32"))]
+    println!("🕳️ BLACK HOLE SIMULATOR LOADED! Press ? for help.");
 
     let event_loop = EventLoop::new().unwrap();
     let mut app = App::default();

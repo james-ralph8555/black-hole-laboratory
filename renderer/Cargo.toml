@@ -8,13 +8,13 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 simulation = { path = "../simulation" }
-winit = "0.29"
+winit = "0.30"
 log = "0.4"
 env_logger = "0.11"
 cfg-if = "1"
 pollster = "0.3"
 
-wgpu = { version = "0.19", features = ["wgsl"] }
+wgpu = { version = "0.20", features = ["wgsl"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.7"
@@ -26,5 +26,6 @@ web-sys = { version = "0.3", features = [
     "Window",
     "Element",
     "HtmlCanvasElement",
+    "Node",
 ]}
-wgpu = { version = "0.19", features = ["wgsl", "webgl"] }
+wgpu = { version = "0.20", features = ["wgsl", "webgl"] }

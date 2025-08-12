@@ -1,3 +1,3 @@
 fn main() {
-    pollster::block_on(renderer::run());
+    renderer::run();
 }

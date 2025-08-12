@@ -74,8 +74,8 @@ impl ApplicationHandler for State {
     }
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
-pub async fn run() {
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
+pub fn run() {
     cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             std::panic::set_hook(Box::new(console_error_panic_hook::hook));
@@ -90,5 +90,10 @@ pub async fn run() {
     let event_loop = EventLoop::new().unwrap();
     event_loop.set_control_flow(ControlFlow::Poll);
     let mut app = State::default();
-    event_loop.run_app(&mut app).unwrap();
+    match event_loop.run_app(&mut app) {
+        Ok(_) => (),
+        Err(e) => {
+            eprintln!("Error running event loop: {}", e);
+        }
+    }
 }

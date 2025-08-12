@@ -9,13 +9,13 @@ This is a real-time, physically-accurate black hole simulator using Rust, wgpu, 
 ## Common Commands
 
 ### Building
-- **Build everything**: `npm run build` (builds web frontend)
+- **Build web frontend**: `cd www && npm run build`
 - **Build Rust workspace**: `cargo build`
 - **Build for release**: `cargo build --release`
 - **Build WASM**: `wasm-pack build renderer --target web`
 
 ### Development Server
-- **Start dev server**: `npm run serve` (starts webpack dev server)
+- **Start dev server**: `cd www && npm run serve`
 - **Run native renderer**: `cargo run -p renderer`
 
 ### Testing

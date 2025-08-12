@@ -23,19 +23,34 @@ The project has a working real-time ray tracer that simulates a black hole:
 - [Nix](https://nixos.org/download.html) (recommended for reproducible environment)
 - Or: Rust toolchain with wasm32 target, Node.js 22+, wasm-pack
 
-### Running the Project
+### Running for Development
+
+To run the project with a local development server that supports live reloading:
 
 ```bash
 # Enter development environment (with Nix)
 nix develop
 
-# Build and start the web server
-npm run build
+# Navigate to the web directory
+cd www
+
+# Install dependencies and start the dev server
+npm install
 npm run serve
 
-# Open browser to http://localhost:8080
-# Use WASD keys to move camera, Space/Shift for up/down
+# Open your browser to http://localhost:8080
 ```
+
+### Deploying as a Static Site
+
+The project is built as a static site and can be deployed to any static hosting provider (e.g., GitHub Pages, Netlify, Vercel).
+
+```bash
+# From the www directory, create an optimized production build
+cd www
+npm run build
+```
+This command will generate all necessary files in the `www/dist` directory. Upload the contents of this directory to your hosting provider.
 
 ### Alternative (without Nix)
 ```bash
@@ -45,8 +60,16 @@ rustup target add wasm32-unknown-unknown
 # Install wasm-pack
 cargo install wasm-pack
 
-# Build and serve
-cd www && npm install && npm run build && npm run serve
+# Navigate to the web directory
+cd www
+
+# Install dependencies
+npm install
+
+# Start dev server or build for production
+npm run serve
+# or
+npm run build
 ```
 
 ![Black Hole Simulation](https://placehold.co/800x400/000000/FFFFFF?text=Black+Hole+Simulation)

@@ -14,6 +14,7 @@ module.exports = {
     filename: "[name].js",
   },
   devServer: {
+    host: "0.0.0.0",
     static: {
         directory: dist,
     }

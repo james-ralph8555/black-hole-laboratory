@@ -38,5 +38,3 @@ WORKDIR /app
 # development and build environment for AWS Amplify.
 RUN mkdir -p /etc/nix
 RUN echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf
-
-ENTRYPOINT ["bash", "-c"]

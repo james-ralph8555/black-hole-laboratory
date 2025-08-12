@@ -20,6 +20,7 @@ RUN nix-channel --add https://nixos.org/channels/nixpkgs-unstable nixpkgs && \
 
 # Create a symlink for curl in /bin, as some scripts expect it there.
 # RUN ln -s /root/.nix-profile/bin/curl /bin/curl
+#
 
 # Add the Nix profile's bin directory to the PATH. This makes packages installed
 # with `nix-env` (like npm) available in the shell.

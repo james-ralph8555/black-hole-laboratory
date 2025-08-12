@@ -81,10 +81,6 @@ The project uses Nix flakes for reproducible development environments:
 
 The project is configured for deployment on AWS Amplify using a custom Docker image defined in `Dockerfile` and build steps in `amplify.yml`. This setup leverages the Nix flake to ensure a reproducible build environment.
 
-## Deployment
-
-The project is configured for deployment on AWS Amplify using a custom Docker image defined in `Dockerfile` and build steps in `amplify.yml`. This setup leverages the Nix flake to ensure a reproducible build environment.
-
 ## Future Roadmap
 
 The codebase is designed for extensibility. Current features and future plans include:

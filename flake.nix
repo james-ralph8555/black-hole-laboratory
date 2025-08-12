@@ -40,6 +40,7 @@
 
             # Web development dependencies
             nodejs_22
+            docker
 
             # Editor integration for better DX
             nodePackages.typescript-language-server

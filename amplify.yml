@@ -1,0 +1,44 @@
+# AWS Amplify build settings for the Black Hole Simulator project.
+# This configuration tells Amplify how to build the static web application
+# using a custom Docker build image that has Nix installed.
+version: 1
+frontend:
+  phases:
+    build:
+      commands:
+        # Use `nix develop` to enter the environment defined in flake.nix,
+        # then execute the build script within that environment. This ensures all
+        # correct versions of Node.js, Rust, and wasm-pack are used.
+        - nix develop --command bash -c 'cd www && npm install && npm run build'
+  artifacts:
+    # Specify the directory where the build output (static files) is located.
+    # Amplify will deploy the contents of this directory.
+    baseDirectory: www/dist
+    files:
+      - '**/*'
+  cache:
+    paths:
+      # Cache the node_modules directory to speed up subsequent builds.
+      - www/node_modules/**/*
+# AWS Amplify build settings for the Black Hole Simulator project.
+# This configuration tells Amplify how to build the static web application
+# using a custom Docker build image that has Nix installed.
+version: 1
+frontend:
+  phases:
+    build:
+      commands:
+        # Use `nix develop` to enter the environment defined in flake.nix,
+        # then execute the build script within that environment. This ensures all
+        # correct versions of Node.js, Rust, and wasm-pack are used.
+        - nix develop --command bash -c 'cd www && npm install && npm run build'
+  artifacts:
+    # Specify the directory where the build output (static files) is located.
+    # Amplify will deploy the contents of this directory.
+    baseDirectory: www/dist
+    files:
+      - '**/*'
+  cache:
+    paths:
+      # Cache the node_modules directory to speed up subsequent builds.
+      - www/node_modules/**/*

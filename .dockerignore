@@ -1,0 +1,64 @@
+# Git
+.git/
+.gitignore
+
+# Nix build artifacts
+result*
+.direnv/
+
+# Node build artifacts
+www/node_modules/
+www/dist/
+www/pkg/
+
+# IDE settings
+.vscode/
+
+# Project documentation and config
+README.md
+CLAUDE.md
+LICENSE
+Dockerfile
+amplify.yml
+# Nix build artifacts
+result*
+.direnv/
+
+# Rust build artifacts
+/target/
+
+# Node build artifacts
+/www/node_modules/
+/www/dist/
+/www/pkg/
+
+# IDEs and editors
+.idea/
+.vscode/
+````
+This looks solid. It prevents local build artifacts and IDE configs from bloating the Docker build context.
+
+**4. Update `README.md`**
+I have the content for this. I will find a unique part to search for.
+The file ends with a list. I'll append my section before "Alternative (without Nix)".
+```markdown
+README.md
+<<<<<<< SEARCH
+This command will generate all necessary files in the `www/dist` directory. Upload the contents of this directory to your hosting provider.
+
+### Alternative (without Nix)
+# Nix build artifacts
+result*
+.direnv/
+
+# Rust build artifacts
+/target/
+
+# Node build artifacts
+/www/node_modules/
+/www/dist/
+/www/pkg/
+
+# IDEs and editors
+.idea/
+.vscode/

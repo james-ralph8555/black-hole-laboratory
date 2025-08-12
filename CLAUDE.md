@@ -77,6 +77,14 @@ The project uses Nix flakes for reproducible development environments:
 - **Coordinate system**: Currently uses a simplified model. Plans to use Kerr-Schild coordinates to avoid singularities at the event horizon for a more accurate simulation.
 - **Integration method**: Plans to use 4th-order Runge-Kutta for geodesic equation
 
+## Deployment
+
+The project is configured for deployment on AWS Amplify using a custom Docker image defined in `Dockerfile` and build steps in `amplify.yml`. This setup leverages the Nix flake to ensure a reproducible build environment.
+
+## Deployment
+
+The project is configured for deployment on AWS Amplify using a custom Docker image defined in `Dockerfile` and build steps in `amplify.yml`. This setup leverages the Nix flake to ensure a reproducible build environment.
+
 ## Future Roadmap
 
 The codebase is designed for extensibility. Current features and future plans include:

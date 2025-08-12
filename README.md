@@ -52,6 +52,24 @@ npm run build
 ```
 This command will generate all necessary files in the `www/dist` directory. Upload the contents of this directory to your hosting provider.
 
+### Deploying with AWS Amplify
+
+This project is configured for automated builds and deployments on [AWS Amplify](https://aws.amazon.com/amplify/) using a custom Docker image.
+
+1.  **Build and Push the Custom Docker Image**: The `Dockerfile` in the root of the repository defines a build environment with Nix installed and Flakes enabled. Build this image and push it to a public container registry like Docker Hub or Amazon ECR.
+    ```bash
+    # Example for Docker Hub
+    docker build -t your-dockerhub-username/black-hole-sim-build:latest .
+    docker push your-dockerhub-username/black-hole-sim-build:latest
+    ```
+
+2.  **Connect to Amplify**: In the AWS Amplify Console, connect this Git repository.
+3.  **Configure Build Settings**:
+    - When prompted, go to **Advanced settings** in the build configuration step.
+    - Provide the URL to your custom build image (e.g., `your-dockerhub-username/black-hole-sim-build:latest`).
+    - Amplify will automatically detect and use the `amplify.yml` file from the repository for build commands.
+4.  **Deploy**: Save and deploy. Amplify will pull your custom image, run the build commands specified in `amplify.yml`, and host the static artifacts from the `www/dist` directory.
+
 ### Alternative (without Nix)
 ```bash
 # Ensure wasm32 target is installed

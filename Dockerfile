@@ -34,11 +34,4 @@ RUN rm ./rustup ./wasm-pack-init \
 
 RUN echo export PATH="$PATH" >> ~/.bashrc
 
-# Mark the workspace directory as safe for git operations. This is necessary
-# because the user mounting the volume (from the host) will have a different
-# UID than the root user inside the container that runs git.
-RUN git config --global --add safe.directory /app
-
-WORKDIR /app
-
 ENTRYPOINT ["bash", "-c"]

@@ -19,9 +19,10 @@ RUN yum update -y && \
         which && \
     yum clean all
 
-# Install Node.js v22 and npm using the official NodeSource repository.
-# This is required for frontend builds and tooling.
-RUN curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - && \
+# Install Node.js v18 and npm using the official NodeSource repository.
+# This is required for frontend builds and tooling. Node.js v22+ requires
+# a newer glibc than is available in Amazon Linux 2.
+RUN curl -fsSL https://rpm.nodesource.com/setup_18.x | bash - && \
     yum install -y nodejs
 
 # Install Rust using rustup, the standard Rust toolchain installer.

@@ -57,14 +57,19 @@ The project is structured as a Rust workspace to maintain a clean separation of 
 ```text
 /black-hole-simulator
 |-- Cargo.toml
+|-- /www                  // Web frontend assets
+|   |-- index.html
+|   |-- package.json
+|   |-- webpack.config.js
 |-- /simulation
 |   |-- Cargo.toml
-|   |-- src/lib.rs  // Defines the metric, Christoffel symbols, and geodesic solver.
+|   |-- src/lib.rs        // Defines the metric, Christoffel symbols, and geodesic solver.
 |-- /renderer
 |   |-- Cargo.toml
-|   |-- src/main.rs // wgpu setup, render loop, shader loading.
+|   |-- src/main.rs       // Native entry point for development
+|   |-- src/lib.rs        // Core renderer logic, compiles to WASM
 |   |-- shaders/
-|       |-- render.wgsl // The shader that performs the ray tracing.
+|       |-- render.wgsl   // The shader that performs the ray tracing.
 ```
 
 ### `simulation` Crate
@@ -78,7 +83,9 @@ The project is structured as a Rust workspace to maintain a clean separation of 
 ### `renderer` Crate
 
 *   **Responsibilities**: All rendering and user interaction logic.
-*   Uses `wgpu` for cross-platform graphics, targeting both native desktops (for development) and the web via WASM.
+*   The core logic is in `src/lib.rs`, which is compiled to WebAssembly to run in the browser.
+*   A thin `src/main.rs` binary is included to run the application natively for development and testing.
+*   Uses `wgpu` for cross-platform graphics.
 *   Initializes a graphics device and sets up a render pipeline.
 *   Creates a simple scene consisting of a single, screen-sized quad.
 *   The core logic is in a fragment shader that performs the ray tracing. For each pixel, the shader:

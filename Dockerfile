@@ -18,6 +18,10 @@ RUN nix-channel --add https://nixos.org/channels/nixpkgs-unstable nixpkgs && \
         nixpkgs.busybox && \
     nix-collect-garbage -d
 
+# Add the Nix profile's bin directory to the PATH. This makes packages installed
+# with `nix-env` (like npm) available in the shell.
+ENV PATH /root/.nix-profile/bin:$PATH
+
 # Mark the workspace directory as safe for git operations. This is necessary
 # because the user mounting the volume (from the host) will have a different
 # UID than the root user inside the container that runs git.

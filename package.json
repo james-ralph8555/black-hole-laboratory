@@ -9,14 +9,3 @@
     "serve": "npm run serve --workspace=www"
   }
 }
-{
-  "name": "black-hole-simulator",
-  "private": true,
-  "workspaces": [
-    "www"
-  ],
-  "scripts": {
-    "build": "npm run build --workspace=www",
-    "serve": "npm run serve --workspace=www"
-  }
-}

@@ -1,6 +1,6 @@
 # Real-Time Black Hole Simulator
 
-This project is a plan to develop a real-time, physically-accurate black hole simulator that runs on the web using Rust and WebGPU. The application will visualize the fascinating and extreme environment around a black hole by ray tracing the paths of light through curved spacetime.
+This project is a real-time, physically-accurate black hole simulator that runs natively for development and on the web using Rust and `wgpu`. The application visualizes the fascinating and extreme environment around a black hole by ray tracing the paths of light through curved spacetime.
 
 The core of the project is separated into two main components: a physics simulation crate and a rendering crate.
 
@@ -52,7 +52,7 @@ The final color of the pixel is determined by the fate of the ray:
 
 ## Project Architecture
 
-The project will be structured as a Rust workspace to maintain a clean separation of concerns.
+The project is structured as a Rust workspace to maintain a clean separation of concerns.
 
 ```text
 /black-hole-simulator
@@ -73,18 +73,18 @@ The project will be structured as a Rust workspace to maintain a clean separatio
 *   Defines the spacetime metric in Kerr-Schild coordinates.
 *   Calculates the Christoffel symbols from the metric.
 *   Provides a function that takes the initial conditions of a ray (position and momentum) and integrates the geodesic equation over a number of steps.
-*   Will be compiled to a library that can be linked by the `renderer` crate.
+*   It is compiled to a library that is used by the `renderer` crate.
 
 ### `renderer` Crate
 
 *   **Responsibilities**: All rendering and user interaction logic.
-*   Uses `wgpu` for cross-platform graphics that can target both native desktops and the web (via WASM).
-*   Initializes a WebGPU device and sets up a render pipeline.
+*   Uses `wgpu` for cross-platform graphics, targeting both native desktops (for development) and the web via WASM.
+*   Initializes a graphics device and sets up a render pipeline.
 *   Creates a simple scene consisting of a single, screen-sized quad.
-*   The core logic will be in a compute or fragment shader. For each pixel, this shader will:
-    *   Calculate the initial direction of a light ray corresponding to that pixel.
-    *   Repeatedly call a function (ported from the `simulation` crate's logic) to step the ray along its geodesic.
-    *   Determine the final state of the ray and write the appropriate color to the screen.
+*   The core logic is in a fragment shader that performs the ray tracing. For each pixel, the shader:
+    *   Calculates the initial direction of a light ray.
+    *   Integrates the ray's path along its geodesic.
+    *   Determines the final state of the ray and writes the appropriate color to the screen.
 
 ## Roadmap & Future Improvements
 

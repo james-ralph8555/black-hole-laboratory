@@ -5,8 +5,7 @@ FROM nixpkgs/nix-unstable:nixos-25.05-x86_64-linux
 # Install dependencies required by AWS Amplify's build environment.
 # See: https://docs.aws.amazon.com/amplify/latest/userguide/custom-build-image.html
 # We use nix-env to install them into the container's environment.
-RUN nix-channel --add https://nixos.org/channels/nixpkgs-unstable nixpkgs && \
-    nix-channel --update && \
+RUN nix-channel --update && \
     nix-env -iA \
         nixpkgs.bash \
         nixpkgs.curl \

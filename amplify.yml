@@ -12,12 +12,6 @@ frontend:
         # We rely on the default shell of `nix develop --command` (/bin/sh)
         # to avoid a hard dependency on `bash`.
         - nix develop --command 'cd www && npm install && npm run build'
-    postBuild:
-      commands:
-        # Login to Docker Hub using credentials stored as environment variables in Amplify
-        - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-        # Push the image to Docker Hub. This command assumes the image has already been built.
-        - docker push jamesralph8555/black-hole-sim-build:latest
   artifacts:
     # Specify the directory where the build output (static files) is located.
     # Amplify will deploy the contents of this directory.

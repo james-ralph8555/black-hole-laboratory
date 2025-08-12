@@ -47,7 +47,7 @@ The project is a Rust workspace with clear separation of concerns:
   - Fragment shader-based ray tracing on a full-screen quad
   - Graphics pipeline with vertex/fragment shaders
   - Camera system with view/projection matrices
-  - Keyboard controls: WASD (movement), Space/Shift (up/down), Q/E (turn)
+  - Keyboard, mouse, and touch controls for movement and looking.
   - Visual toggles for starfield background and coordinate grid
 - **Dependencies**: wgpu, winit, cgmath, bytemuck, simulation crate
 - **Web integration**: Uses wasm-bindgen for browser compatibility with WASM-specific async handling
@@ -68,7 +68,7 @@ The project uses Nix flakes for reproducible development environments:
 - **Graphics API**: wgpu for cross-platform rendering (native + WebGL)
 - **Camera system**: Modular camera implementation in `renderer/src/camera.rs`
   - View/projection matrix calculations using cgmath
-  - Keyboard input handling (WASD + Space/Shift for movement, Q/E for turning)
+  - Input handling for keyboard (WASD, etc.), mouse (drag-to-look), and touch (virtual joystick).
   - WASM-compatible time handling for smooth movement
 - **Rendering pipeline**: Vertex/fragment shader setup with uniform buffers for camera and black hole properties.
 - **Vertex data**: A single full-screen quad with position and texture coordinate attributes.

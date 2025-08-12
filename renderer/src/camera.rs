@@ -126,6 +126,13 @@ pub struct CameraController {
     sensitivity: f32,
     pub yaw: f32,
     pub pitch: f32,
+    mouse_pressed: bool,
+    last_mouse_pos: Option<Vector2<f64>>,
+    touch_joystick_id: Option<u64>,
+    touch_joystick_center: Option<Vector2<f64>>,
+    touch_joystick_current: Option<Vector2<f64>>,
+    touch_look_id: Option<u64>,
+    touch_look_start_pos: Option<Vector2<f64>>,
     pub show_stars: bool,
     pub show_grid: bool,
     pub show_help: bool,
@@ -149,6 +156,13 @@ impl CameraController {
             sensitivity: 0.1,
             yaw: 270.0, // 270° looks towards -Z (black hole at origin from camera at -Z)
             pitch: 0.0,
+            mouse_pressed: false,
+            last_mouse_pos: None,
+            touch_joystick_id: None,
+            touch_joystick_center: None,
+            touch_joystick_current: None,
+            touch_look_id: None,
+            touch_look_start_pos: None,
             show_stars: true,
             show_grid: false,
             show_help: true,  // Start with help visible
@@ -157,6 +171,73 @@ impl CameraController {
             frame_count: 0,
             fps: 0.0,
             last_fps_time: 0.0,
+        }
+    }
+
+    pub fn process_mouse_button(&mut self, state: ElementState) {
+        if state == ElementState::Pressed {
+            self.mouse_pressed = true;
+        } else {
+            self.mouse_pressed = false;
+            self.last_mouse_pos = None;
+        }
+    }
+
+    pub fn process_cursor_move(&mut self, pos: winit::dpi::PhysicalPosition<f64>) {
+        if !self.mouse_pressed {
+            return;
+        }
+        let current_pos = vec2(pos.x, pos.y);
+        if let Some(last_pos) = self.last_mouse_pos {
+            let delta = current_pos - last_pos;
+            // Adjust sensitivity for mouse look
+            self.yaw += delta.x as f32 * self.sensitivity;
+            self.pitch -= delta.y as f32 * self.sensitivity;
+        }
+        self.last_mouse_pos = Some(current_pos);
+    }
+
+    pub fn process_touch(&mut self, touch: &winit::event::Touch, window_size: winit::dpi::PhysicalSize<u32>) {
+        let pos = vec2(touch.location.x, touch.location.y);
+        let half_width = window_size.width as f64 / 2.0;
+
+        match touch.phase {
+            winit::event::TouchPhase::Started => {
+                if pos.x < half_width { // Left side: movement
+                    if self.touch_joystick_id.is_none() {
+                        self.touch_joystick_id = Some(touch.id);
+                        self.touch_joystick_center = Some(pos);
+                        self.touch_joystick_current = Some(pos);
+                    }
+                } else { // Right side: look
+                    if self.touch_look_id.is_none() {
+                        self.touch_look_id = Some(touch.id);
+                        self.touch_look_start_pos = Some(pos);
+                    }
+                }
+            }
+            winit::event::TouchPhase::Moved => {
+                if Some(touch.id) == self.touch_joystick_id {
+                    self.touch_joystick_current = Some(pos);
+                } else if Some(touch.id) == self.touch_look_id {
+                    if let Some(start_pos) = self.touch_look_start_pos {
+                        let delta = pos - start_pos;
+                        self.yaw += delta.x as f32 * self.sensitivity * 0.5; // Touch has different sensitivity
+                        self.pitch -= delta.y as f32 * self.sensitivity * 0.5;
+                    }
+                    self.touch_look_start_pos = Some(pos);
+                }
+            }
+            winit::event::TouchPhase::Ended | winit::event::TouchPhase::Cancelled => {
+                if Some(touch.id) == self.touch_joystick_id {
+                    self.touch_joystick_id = None;
+                    self.touch_joystick_center = None;
+                    self.touch_joystick_current = None;
+                } else if Some(touch.id) == self.touch_look_id {
+                    self.touch_look_id = None;
+                    self.touch_look_start_pos = None;
+                }
+            }
         }
     }
 
@@ -233,6 +314,9 @@ impl CameraController {
     pub fn update_camera(&mut self, camera: &mut Camera, dt: std::time::Duration) {
         let dt = dt.as_secs_f32();
 
+        // Clamp pitch to prevent flipping
+        self.pitch = self.pitch.clamp(-89.0, 89.0);
+
         // Update camera direction based on yaw and pitch
         // Standard FPS camera: yaw=0° looks down +X axis, yaw=90° looks down -Z axis
         let yaw_rad = self.yaw.to_radians();
@@ -264,10 +348,22 @@ impl CameraController {
             }
         }
 
+        // Handle touch input for movement
+        let mut touch_fwd = 0.0;
+        let mut touch_strafe = 0.0;
+        if let (Some(center), Some(current)) = (self.touch_joystick_center, self.touch_joystick_current) {
+            let delta = current - center;
+            let joystick_radius = 100.0; // Virtual joystick size in pixels
+            touch_fwd = (-delta.y / joystick_radius).clamp(-1.0, 1.0) as f32;
+            touch_strafe = (delta.x / joystick_radius).clamp(-1.0, 1.0) as f32;
+        }
+
         // Move camera position using the calculated direction vectors
         // Negate forward movement so W moves toward black hole at origin
-        camera.eye += forward * (self.amount_backward - self.amount_forward) * self.speed * dt;
-        camera.eye += right * (self.amount_right - self.amount_left) * self.speed * dt;
+        let move_forward = self.amount_forward + touch_fwd;
+        let move_strafe = (self.amount_right - self.amount_left) + touch_strafe;
+        camera.eye += forward * (self.amount_backward - move_forward) * self.speed * dt;
+        camera.eye += right * move_strafe * self.speed * dt;
         camera.eye += up * (self.amount_up - self.amount_down) * self.speed * dt;
 
         // Update target to be in front of camera
@@ -283,6 +379,8 @@ MOVEMENT CONTROLS:
   W/A/S/D     - Move forward/left/backward/right
   Space/Shift - Move up/down
   Q/E         - Turn left/right
+  Mouse Drag  - Look around
+  Touch       - L/R for joystick/look
 
 VISUAL TOGGLES:
   B - Toggle background (stars/gradient)

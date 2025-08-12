@@ -383,13 +383,30 @@ impl<'a> State<'a> {
     fn input(&mut self, event: &WindowEvent) -> bool {
         match event {
             WindowEvent::KeyboardInput {
-                event: KeyEvent {
-                    physical_key: PhysicalKey::Code(key),
-                    state,
-                    ..
-                },
+                event:
+                    KeyEvent {
+                        physical_key: PhysicalKey::Code(key),
+                        state,
+                        ..
+                    },
                 ..
             } => self.camera_controller.process_keyboard(*key, *state),
+            WindowEvent::MouseInput { state, button, .. } => {
+                if *button == winit::event::MouseButton::Left {
+                    self.camera_controller.process_mouse_button(*state);
+                    true
+                } else {
+                    false
+                }
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                self.camera_controller.process_cursor_move(*position);
+                true
+            }
+            WindowEvent::Touch(touch) => {
+                self.camera_controller.process_touch(touch, self.size);
+                true
+            }
             _ => false,
         }
     }

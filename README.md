@@ -13,7 +13,7 @@ The project has a working real-time ray tracer that simulates a black hole:
 - ✅ Cross-platform ray tracing renderer (native + WebAssembly) using `wgpu`.
 - ✅ Renders a Schwarzschild (non-spinning) black hole.
 - ✅ Visualizes gravitational lensing by distorting the background starfield.
-- ✅ Camera system with full 3D movement and rotation controls (WASD, Space/Shift, Q/E).
+- ✅ Camera system with keyboard, mouse, and touch controls.
 - ✅ Interactive help and debug overlay.
 - ✅ Visual toggles for the starfield and a coordinate grid.
 
@@ -130,7 +130,7 @@ The project is structured as a Rust workspace to maintain a clean separation of 
 *   **Current implementation**: 
     *   Full graphics pipeline with vertex/fragment shaders
     *   Camera system with view/projection matrices (`src/camera.rs`)
-    *   Keyboard input handling (WASD movement + Space/Shift for up/down, Q/E for turning)
+    *   Input handling for keyboard, mouse, and touch (`camera.rs`)
     *   WASM-compatible async initialization and timing
     *   Renders a single full-screen quad to trigger fragment shader execution for every pixel.
 *   **Ray Tracing Implementation**: The fragment shader (`render.wgsl`) performs the ray tracing. For each pixel, it:

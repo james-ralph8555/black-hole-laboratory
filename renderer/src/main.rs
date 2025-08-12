@@ -1,18 +1,18 @@
+use std::error::Error;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
     println!("{}", simulation::get_placeholder_string());
 
-    let event_loop = EventLoop::new().unwrap();
+    let event_loop = EventLoop::new()?;
     let window = WindowBuilder::new()
         .with_title("Black Hole Simulator")
-        .build(&event_loop)
-        .unwrap();
+        .build(&event_loop)?;
 
     event_loop.run(move |event, elwt| {
         elwt.set_control_flow(ControlFlow::Poll);
@@ -36,5 +36,7 @@ fn main() {
             }
             _ => (),
         }
-    }).unwrap();
+    })?;
+
+    Ok(())
 }

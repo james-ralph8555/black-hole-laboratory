@@ -4,18 +4,18 @@ This project is a real-time, physically-accurate black hole simulator that runs 
 
 The core of the project is separated into two main components: a physics simulation crate and a rendering crate.
 
-*   **`simulation` crate**: Handles the heavy lifting of general relativity, solving the geodesic equations to determine how light travels. (Currently placeholder implementation)
-*   **`renderer` crate**: Uses `wgpu` to create the visuals, currently featuring a functional 3D renderer with camera controls. Will eventually trace rays for each pixel on the screen based on results from the simulation.
+*   **`simulation` crate**: Handles the heavy lifting of general relativity, providing the physics structs and calculations for how light travels through curved spacetime.
+*   **`renderer` crate**: Uses `wgpu` for cross-platform rendering. It traces light rays for each pixel on the screen to visualize the black hole and the gravitational lensing of the background starfield.
 
 ## Current Status
 
-The project now has a working 3D graphics foundation:
-- ✅ Cross-platform wgpu renderer (native + WebAssembly)
-- ✅ Camera system with keyboard controls (WASD + Space/Shift)
-- ✅ Graphics pipeline with vertex/fragment shaders
-- ✅ Vertex buffer rendering with indexed geometry
-- ⏳ Physics simulation (placeholder)
-- ⏳ Ray tracing implementation (future work)
+The project has a working real-time ray tracer that simulates a black hole:
+- ✅ Cross-platform ray tracing renderer (native + WebAssembly) using `wgpu`.
+- ✅ Renders a Schwarzschild (non-spinning) black hole.
+- ✅ Visualizes gravitational lensing by distorting the background starfield.
+- ✅ Camera system with full 3D movement and rotation controls (WASD, Space/Shift, Q/E).
+- ✅ Interactive help and debug overlay.
+- ✅ Visual toggles for the starfield and a coordinate grid.
 
 ## Quick Start
 
@@ -85,12 +85,12 @@ To find the path of a light ray, we must solve this system of second-order ordin
 
 ### Ray Tracing
 
-The renderer will work by "backwards" ray tracing. For each pixel on the screen, we will cast a ray from a virtual camera backwards in time into the scene. We then use our geodesic solver to calculate the path of this ray through the curved spacetime around the black hole.
+The renderer works by "backwards" ray tracing. For each pixel on the screen, a ray is cast from a virtual camera backwards in time into the scene. A simplified geodesic solver in the fragment shader calculates the path of this ray as it travels through the curved spacetime around the black hole.
 
 The final color of the pixel is determined by the fate of the ray:
 
 *   If the ray's path ends up crossing the event horizon, it means that light from that direction is trapped by the black hole. The pixel will be colored black, forming the iconic "shadow."
-*   If the ray escapes to infinity, its final direction is calculated. We can then sample a background texture (like a star map or a nebula) to determine the pixel's color. This process will naturally produce **gravitational lensing**.
+*   If the ray escapes to "infinity" (a certain distance from the black hole), its final direction is used to sample a background starfield. This process naturally produces the **gravitational lensing** effect, where the stars behind the black hole appear distorted and warped.
 
 ## Project Architecture
 
@@ -117,10 +117,9 @@ The project is structured as a Rust workspace to maintain a clean separation of 
 ### `simulation` Crate
 
 *   **Responsibilities**: Pure physics calculations.
-*   Defines the spacetime metric in Kerr-Schild coordinates.
-*   Calculates the Christoffel symbols from the metric.
-*   Provides a function that takes the initial conditions of a ray (position and momentum) and integrates the geodesic equation over a number of steps.
-*   It is compiled to a library that is used by the `renderer` crate.
+*   Contains the foundational data structures (`VolumetricMass`, `Geodesic`) and logic for simulating general relativity.
+*   The goal is for this crate to define the spacetime metric (e.g., in Kerr-Schild coordinates), calculate Christoffel symbols, and provide a robust geodesic equation solver (e.g., using Runge-Kutta 4).
+*   It is compiled to a library that is used by the `renderer` crate. The current ray tracing is implemented directly in the shader for performance, with plans to use this crate for more accurate physics in the future.
 
 ### `renderer` Crate
 
@@ -131,20 +130,22 @@ The project is structured as a Rust workspace to maintain a clean separation of 
 *   **Current implementation**: 
     *   Full graphics pipeline with vertex/fragment shaders
     *   Camera system with view/projection matrices (`src/camera.rs`)
-    *   Keyboard input handling (WASD movement + Space/Shift for up/down)
+    *   Keyboard input handling (WASD movement + Space/Shift for up/down, Q/E for turning)
     *   WASM-compatible async initialization and timing
-    *   Vertex buffer rendering with indexed geometry
-*   **Future**: Fragment shader ray tracing. For each pixel, the shader will:
-    *   Calculate the initial direction of a light ray.
-    *   Integrate the ray's path along its geodesic.
-    *   Determine the final state of the ray and write the appropriate color to the screen.
+    *   Renders a single full-screen quad to trigger fragment shader execution for every pixel.
+*   **Ray Tracing Implementation**: The fragment shader (`render.wgsl`) performs the ray tracing. For each pixel, it:
+    *   Calculates the initial direction of a light ray from the camera's perspective.
+    *   Iteratively steps the ray through spacetime, applying a simplified gravitational pull from the black hole at each step.
+    *   Determines if the ray falls into the event horizon (coloring the pixel black) or escapes (coloring it based on the background starfield).
 
 ## Roadmap & Future Improvements
 
 This project is designed to be extensible. After establishing the core simulation of a Schwarzschild black hole, we can add more complex and visually stunning phenomena.
 
-- [ ] **Accretion Disk**: We will add a glowing, superheated disk of matter orbiting the black hole. This will be modeled as a flat, textured disk on the equatorial plane. The ray tracing algorithm will be updated to calculate intersections with this disk.
-- [ ] **Gravitational Lensing**: This effect will emerge naturally from the correct implementation of the geodesic ray tracer. Light rays from distant stars that pass near the black hole will be bent, causing the background to appear distorted and warped, creating Einstein rings and other phenomena.
-- [ ] **Relativistic Doppler & Beaming**: The material in the accretion disk is moving at relativistic speeds. We will model the Doppler effect (redshifting and blueshifting of light) and relativistic beaming (aberration). This will make the side of the disk moving towards the camera appear brighter and bluer, while the side moving away will be dimmer and redder.
-- [ ] **Kerr (Spinning) Black Hole**: We will upgrade the simulation to a Kerr black hole. This requires implementing the more complex Kerr metric. A spinning black hole drags spacetime around with it (an effect called frame-dragging), which changes the shape of the event horizon and the black hole's shadow.
+- [x] **Schwarzschild Black Hole**: Simulation of a non-spinning black hole is complete.
+- [x] **Gravitational Lensing**: The lensing effect is visible and emerges from the ray tracing implementation.
+- [ ] **Accretion Disk**: Add a glowing, superheated disk of matter orbiting the black hole. This will be modeled as a flat, textured disk on the equatorial plane. The ray tracing algorithm will be updated to calculate intersections with this disk.
+- [ ] **Relativistic Doppler & Beaming**: The material in the accretion disk moves at relativistic speeds. We will model the Doppler effect (redshifting and blueshifting of light) and relativistic beaming (aberration). This will make the side of the disk moving towards the camera appear brighter and bluer, while the side moving away will be dimmer and redder.
+- [ ] **Kerr (Spinning) Black Hole**: Upgrade the simulation to a Kerr black hole. This requires implementing the more complex Kerr metric. A spinning black hole drags spacetime around with it (an effect called frame-dragging), which changes the shape of the event horizon and the black hole's shadow.
+- [ ] **Improved Physics Accuracy**: Replace the simplified gravity in the shader with a more robust geodesic solver using the `simulation` crate.
 - [ ] **Multiple Black Holes**: A highly ambitious goal would be to simulate the spacetime of a binary black hole system. This would likely require moving beyond analytical metrics and into the realm of numerical relativity to approximate the combined spacetime curvature.

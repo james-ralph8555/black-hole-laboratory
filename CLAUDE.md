@@ -33,8 +33,8 @@ The project is a Rust workspace with clear separation of concerns:
 
 ### `simulation` crate (`simulation/`)
 - **Purpose**: Pure physics calculations for general relativity
-- **Current state**: Placeholder implementation
-- **Future**: Will implement Kerr-Schild coordinates, Christoffel symbols, and geodesic equation integration
+- **Current state**: Contains foundational structs for physics simulation (`VolumetricMass`, `Geodesic`, `LightRay`) and a simplified Schwarzschild metric implementation. The main ray tracing logic is currently implemented directly in the shader for performance.
+- **Future**: Will implement Kerr-Schild coordinates, Christoffel symbols, and more accurate geodesic equation integration using the `LightRay` struct.
 - **Dependencies**: None (pure math)
 
 ### `renderer` crate (`renderer/`)
@@ -42,12 +42,13 @@ The project is a Rust workspace with clear separation of concerns:
 - **Dual targets**: 
   - Native binary (`src/main.rs`) for development
   - WebAssembly library (`src/lib.rs`) for web deployment
-- **Current state**: Functional 3D renderer with camera controls
+- **Current state**: Ray tracing renderer that visualizes a Schwarzschild black hole.
 - **Features implemented**: 
+  - Fragment shader-based ray tracing on a full-screen quad
   - Graphics pipeline with vertex/fragment shaders
   - Camera system with view/projection matrices
-  - WASD keyboard movement controls (+ Space/Shift for up/down)
-  - Vertex buffer rendering with indexed geometry
+  - Keyboard controls: WASD (movement), Space/Shift (up/down), Q/E (turn)
+  - Visual toggles for starfield background and coordinate grid
 - **Dependencies**: wgpu, winit, cgmath, bytemuck, simulation crate
 - **Web integration**: Uses wasm-bindgen for browser compatibility with WASM-specific async handling
 
@@ -67,20 +68,22 @@ The project uses Nix flakes for reproducible development environments:
 - **Graphics API**: wgpu for cross-platform rendering (native + WebGL)
 - **Camera system**: Modular camera implementation in `renderer/src/camera.rs`
   - View/projection matrix calculations using cgmath
-  - Keyboard input handling (WASD + Space/Shift)
+  - Keyboard input handling (WASD + Space/Shift for movement, Q/E for turning)
   - WASM-compatible time handling for smooth movement
-- **Rendering pipeline**: Vertex/fragment shader setup with uniform buffer for camera
-- **Vertex data**: Position and texture coordinate attributes with indexed rendering
-- **Physics target**: Currently placeholder, planned for Schwarzschild black hole simulation
-- **Ray tracing approach**: Fragment shader will perform backwards ray tracing from camera
-- **Coordinate system**: Will use Kerr-Schild coordinates to avoid singularities at event horizon
+- **Rendering pipeline**: Vertex/fragment shader setup with uniform buffers for camera and black hole properties.
+- **Vertex data**: A single full-screen quad with position and texture coordinate attributes.
+- **Physics target**: A simplified Schwarzschild black hole simulation is implemented directly in the fragment shader.
+- **Ray tracing approach**: The fragment shader performs backwards ray tracing from the camera for each pixel. The path of each ray is deflected based on a simplified gravitational model, producing a gravitational lensing effect.
+- **Coordinate system**: Currently uses a simplified model. Plans to use Kerr-Schild coordinates to avoid singularities at the event horizon for a more accurate simulation.
 - **Integration method**: Plans to use 4th-order Runge-Kutta for geodesic equation
 
 ## Future Roadmap
 
-The codebase is designed for extensibility with planned features:
-- Accretion disk visualization
-- Gravitational lensing effects
-- Relativistic Doppler effects
-- Kerr (spinning) black holes
-- Multiple black hole systems
+The codebase is designed for extensibility. Current features and future plans include:
+- [x] **Schwarzschild Black Hole**: A non-spinning black hole is simulated.
+- [x] **Gravitational Lensing**: The background is distorted by the black hole's gravity.
+- [ ] **Accretion Disk**: Add a glowing, superheated disk of matter orbiting the black hole.
+- [ ] **Relativistic Doppler Effects**: Model redshift/blueshift of the accretion disk.
+- [ ] **Kerr (Spinning) Black Holes**: Upgrade the simulation to a spinning black hole with frame-dragging effects.
+- [ ] **Improved Physics**: Integrate the geodesic equation using the Runge-Kutta solver in the `simulation` crate for more accurate ray paths.
+- [ ] **Multiple Black Hole Systems**: An ambitious goal to simulate binary systems.

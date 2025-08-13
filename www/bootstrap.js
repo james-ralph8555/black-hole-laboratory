@@ -190,6 +190,53 @@ window.updateFpsCounter = function(fps, visible) {
   }
 };
 
+// Profiling averages
+let profilingHistory = {
+  cpu: [],
+  update: [],
+  render: [],
+  maxSamples: 60
+};
+
+window.updateProfilingInfo = function(cpuTime, gpuTime, updateTime, renderTime, gpuSupported) {
+  // Update running averages
+  profilingHistory.cpu.push(cpuTime);
+  profilingHistory.update.push(updateTime);
+  profilingHistory.render.push(renderTime);
+  
+  // Keep only recent samples
+  if (profilingHistory.cpu.length > profilingHistory.maxSamples) {
+    profilingHistory.cpu.shift();
+    profilingHistory.update.shift();
+    profilingHistory.render.shift();
+  }
+  
+  // Calculate averages
+  const avgCpu = profilingHistory.cpu.reduce((a, b) => a + b, 0) / profilingHistory.cpu.length;
+  const avgUpdate = profilingHistory.update.reduce((a, b) => a + b, 0) / profilingHistory.update.length;
+  const avgRender = profilingHistory.render.reduce((a, b) => a + b, 0) / profilingHistory.render.length;
+  
+  document.getElementById('profiling-cpu').textContent = `CPU: ${cpuTime.toFixed(4)}ms (avg: ${avgCpu.toFixed(4)}ms)`;
+  
+  if (gpuSupported && gpuTime > 0) {
+    document.getElementById('profiling-gpu').textContent = `GPU: ${gpuTime.toFixed(4)}ms`;
+    document.getElementById('profiling-support').textContent = `GPU Timing: Supported`;
+  } else {
+    document.getElementById('profiling-gpu').textContent = `GPU: ${gpuSupported ? 'Pending...' : 'N/A'}`;
+    document.getElementById('profiling-support').textContent = `GPU Timing: ${gpuSupported ? 'Supported' : 'Not Supported'}`;
+  }
+  
+  document.getElementById('profiling-update').textContent = `Update: ${updateTime.toFixed(4)}ms (avg: ${avgUpdate.toFixed(4)}ms)`;
+  document.getElementById('profiling-render').textContent = `Render: ${renderTime.toFixed(4)}ms (avg: ${avgRender.toFixed(4)}ms)`;
+};
+
+window.setProfilingVisible = function(visible) {
+  const profilingOverlay = document.getElementById('profiling-overlay');
+  if (profilingOverlay) {
+    profilingOverlay.style.display = visible ? 'block' : 'none';
+  }
+};
+
 // Debug control sliders - global reference to WASM module
 let wasmModule = null;
 

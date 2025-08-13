@@ -80,6 +80,30 @@
                 border: 1px solid #666666;
             }
             
+            #profiling-overlay {
+                position: fixed;
+                top: 10px;
+                left: 10px;
+                background: rgba(50, 50, 50, 0.95);
+                color: #ffffff;
+                padding: 15px;
+                border: 1px solid #888888;
+                border-radius: 8px;
+                font-family: 'Space Mono', 'Courier New', monospace;
+                font-size: 12px;
+                line-height: 1.4;
+                z-index: 800;
+                display: none;
+                min-width: 200px;
+            }
+            
+            #profiling-overlay .section-title {
+                color: #cccccc;
+                font-weight: bold;
+                margin-bottom: 8px;
+                font-size: 13px;
+            }
+            
             #help-overlay .debug-controls {
                 background: rgba(30, 30, 30, 0.8);
                 padding: 12px;
@@ -219,17 +243,17 @@
         
         <div id="touch-controls-overlay">
             <div class="touch-region touch-region-left">
-                👆 MOVEMENT<br>
+                MOVEMENT<br>
                 Virtual Joystick
             </div>
             <div class="touch-region touch-region-right">
-                👆 LOOK AROUND<br>
+                LOOK AROUND<br>
                 Drag to Turn
             </div>
         </div>
         
         <div id="help-overlay">
-            <h1>🕳️ BLACK HOLE SIMULATOR</h1>
+            <h1>BLACK HOLE SIMULATOR</h1>
             <div class="section">
                 <div class="section-title">MOVEMENT CONTROLS:</div>
                 <div>W/A/S/D     - Move forward/left/backward/right</div>
@@ -244,6 +268,7 @@
                 <div>B - Toggle background (stars/gradient)</div>
                 <div>G - Toggle lat/long grid lines</div>
                 <div>F - Toggle FPS counter</div>
+                <div>P - Toggle profiling info</div>
                 <div>? - Toggle this help</div>
             </div>
             <div class="debug-controls">
@@ -281,6 +306,15 @@
             <div style="text-align: center; margin-top: 15px; color: #888;">
                 Press ? to hide this help
             </div>
+        </div>
+        
+        <div id="profiling-overlay">
+            <div class="section-title">PROFILING INFO</div>
+            <div id="profiling-cpu">CPU Frame Time: 0.00ms</div>
+            <div id="profiling-gpu">GPU Render Time: N/A</div>
+            <div id="profiling-update">Update Time: 0.00ms</div>
+            <div id="profiling-render">Render Encode: 0.00ms</div>
+            <div id="profiling-support">GPU Timing: Not Supported</div>
         </div>
         
         <script type="module" src="./index.js"></script>

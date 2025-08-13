@@ -159,6 +159,7 @@ pub struct CameraController {
     pub show_grid: bool,
     pub show_help: bool,
     pub show_fps: bool,
+    pub show_profiling: bool,
     pub last_key: Option<KeyCode>,
     pub frame_count: u32,
     pub fps: f32,
@@ -193,6 +194,7 @@ impl CameraController {
             show_grid: false,
             show_help: false,  // Start with help hidden (flash message shows instead)
             show_fps: false,   // Start with FPS counter hidden
+            show_profiling: false, // Start with profiling hidden
             last_key: None,
             frame_count: 0,
             fps: 0.0,
@@ -348,6 +350,13 @@ impl CameraController {
                 // Toggle FPS counter
                 if state == ElementState::Pressed {
                     self.show_fps = !self.show_fps;
+                }
+                true
+            }
+            KeyCode::KeyP => {
+                // Toggle profiling info
+                if state == ElementState::Pressed {
+                    self.show_profiling = !self.show_profiling;
                 }
                 true
             }

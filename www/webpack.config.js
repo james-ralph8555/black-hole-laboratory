@@ -31,7 +31,7 @@ module.exports = (env, argv) => {
 
     new WasmPackPlugin({
       crateDirectory: path.resolve(__dirname, "../renderer"),
-      extraArgs: `--target web${isProduction ? ' --release' : ''}`,
+      extraArgs: `--target web${isProduction ? ' --release' : ' --profile dev-release'}`,
       outDir: path.resolve(__dirname, "pkg"),
     }),
   ],

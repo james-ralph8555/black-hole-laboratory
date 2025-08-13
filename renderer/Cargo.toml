@@ -11,13 +11,16 @@ crate-type = ["cdylib", "rlib"]
 simulation = { path = "../simulation" }
 winit = "0.30"
 log = "0.4"
-env_logger = "0.11"
+
 cfg-if = "1"
 pollster = "0.3"
 cgmath = "0.18"
 bytemuck = { version = "1.4", features = [ "derive" ] }
 anyhow = "1.0"
 image = { version = "0.24", default-features = false, features = ["jpeg"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+env_logger = "0.11"
 
 wgpu = { version = "0.20", features = ["wgsl"] }
 
@@ -35,3 +38,4 @@ web-sys = { version = "0.3", features = [
     "Performance",
 ]}
 wgpu = { version = "0.20", features = ["wgsl", "webgl"] }
+

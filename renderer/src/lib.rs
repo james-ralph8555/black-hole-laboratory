@@ -26,14 +26,23 @@ extern "C" {
     #[wasm_bindgen(js_name = updateDebugInfo)]
     fn js_update_debug_info(position: &[f32], orientation: &[f32], last_key: &str, fps: f32, render_width: f32, render_height: f32, velocity: &[f32]);
     
+    #[wasm_bindgen(js_name = updateProfilingInfo)]
+    fn js_update_profiling_info(cpu_time: f32, gpu_time: f32, update_time: f32, render_time: f32, gpu_supported: bool);
+    
     #[wasm_bindgen(js_name = updateFpsCounter)]
     fn js_update_fps_counter(fps: f32, visible: bool);
+    
+    #[wasm_bindgen(js_name = setProfilingVisible)]
+    fn js_set_profiling_visible(visible: bool);
 }
 
 use wgpu::util::DeviceExt;
 
 mod camera;
 use camera::{Camera, CameraController, CameraUniform};
+
+mod profiler;
+use profiler::Profiler;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -99,6 +108,7 @@ struct State<'a> {
     camera_controller: CameraController,
     black_hole: simulation::KerrBlackHole,
     last_help_state: bool,
+    last_profiling_state: bool,
     black_hole_uniform: BlackHoleUniform,
     black_hole_buffer: wgpu::Buffer,
     black_hole_bind_group: wgpu::BindGroup,
@@ -114,6 +124,7 @@ struct State<'a> {
     last_render_time: std::time::Instant,
     #[cfg(target_arch = "wasm32")]
     last_render_time: f64, // Use f64 for JS performance.now() timestamp
+    profiler: Profiler,
 }
 
 impl<'a> State<'a> {
@@ -151,7 +162,11 @@ impl<'a> State<'a> {
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
-                    required_features: wgpu::Features::empty(),
+                    required_features: if adapter.features().contains(wgpu::Features::TIMESTAMP_QUERY) {
+                        wgpu::Features::TIMESTAMP_QUERY
+                    } else {
+                        wgpu::Features::empty()
+                    },
                     required_limits: adapter.limits(),
                     label: None,
                 },
@@ -445,6 +460,8 @@ impl<'a> State<'a> {
         #[cfg(target_arch = "wasm32")]
         log::info!("Render pipeline created");
 
+        let profiler = Profiler::new(&device);
+
         Self {
             window,
             surface,
@@ -463,6 +480,7 @@ impl<'a> State<'a> {
             camera_controller,
             black_hole,
             last_help_state: false,  // Match camera_controller.show_help initial state
+            last_profiling_state: false,  // Match camera_controller.show_profiling initial state
             black_hole_uniform,
             black_hole_buffer,
             black_hole_bind_group,
@@ -478,6 +496,7 @@ impl<'a> State<'a> {
             last_render_time: std::time::Instant::now(),
             #[cfg(target_arch = "wasm32")]
             last_render_time: web_sys::window().unwrap().performance().unwrap().now(),
+            profiler,
         }
     }
 
@@ -555,6 +574,9 @@ impl<'a> State<'a> {
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+        self.profiler.begin_frame();
+        
+        self.profiler.begin_update();
         cfg_if! {
             if #[cfg(target_arch = "wasm32")] {
                 // For WASM, use actual time measurements from performance.now()
@@ -570,6 +592,7 @@ impl<'a> State<'a> {
                 self.camera_controller.update_camera(&mut self.camera, dt);
             }
         }
+        self.profiler.end_update();
 
         // Update camera uniform with toggle states and current resolution
         let show_stars = self.background_mode != 2;
@@ -619,6 +642,12 @@ impl<'a> State<'a> {
                 js_set_help_visible(self.camera_controller.show_help);
             }
             
+            // Update profiling overlay when state changes
+            if self.camera_controller.show_profiling != self.last_profiling_state {
+                self.last_profiling_state = self.camera_controller.show_profiling;
+                js_set_profiling_visible(self.camera_controller.show_profiling);
+            }
+            
             // Update debug info continuously when help is visible
             if self.camera_controller.show_help {
                 let position = [self.camera.eye.x, self.camera.eye.y, self.camera.eye.z];
@@ -631,6 +660,19 @@ impl<'a> State<'a> {
                 js_update_debug_info(&position, &orientation, &last_key, self.camera_controller.fps, self.config.width as f32, self.config.height as f32, &velocity);
             }
             
+            // Update profiling info independently when profiling is visible
+            if self.camera_controller.show_profiling {
+                if let Some(latest_sample) = self.profiler.get_latest_sample() {
+                    js_update_profiling_info(
+                        latest_sample.cpu_time_ms,
+                        latest_sample.gpu_time_ms.unwrap_or(0.0),
+                        latest_sample.update_time_ms,
+                        latest_sample.render_encode_time_ms,
+                        self.profiler.is_gpu_timing_supported()
+                    );
+                }
+            }
+            
             // Update FPS counter
             js_update_fps_counter(self.camera_controller.fps, self.camera_controller.show_fps);
         }
@@ -640,11 +682,15 @@ impl<'a> State<'a> {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
+        self.profiler.begin_render_encode();
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
+
+        // Begin GPU timing
+        self.profiler.begin_gpu_timing(&mut encoder);
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -676,7 +722,20 @@ impl<'a> State<'a> {
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
         }
 
+        // End GPU timing and resolve queries
+        self.profiler.end_gpu_timing(&mut encoder);
+        self.profiler.resolve_gpu_timing(&mut encoder);
+        
+        self.profiler.end_render_encode();
+        
         self.queue.submit(std::iter::once(encoder.finish()));
+        
+        // Try to read GPU timing results from previous frames
+        self.profiler.try_read_gpu_timing(&self.device, &self.queue);
+        
+        self.profiler.end_frame();
+        
+        
         output.present();
 
         Ok(())
@@ -876,6 +935,7 @@ pub fn run() {
                 })));
             }
         } else {
+            #[cfg(not(target_arch = "wasm32"))]
             env_logger::init();
         }
     }

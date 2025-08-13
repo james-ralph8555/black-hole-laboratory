@@ -11,6 +11,7 @@ A real-time, physically-accurate black hole simulator built with Rust and WebGPU
 - ✅ **Frame-Dragging Effects** - Visualizes the Lense-Thirring effect from spinning black holes
 - ✅ **Gravitational Lensing** - Accurate distortion of background starfield
 - ✅ **Interactive Debug Controls** - Real-time sliders for FOV, mass, spin, and ray steps
+- ✅ **Performance Profiling** - High-precision timing with DWARF debug symbols for flame graphs
 - ✅ **Cross-Platform** - Runs natively and in web browsers via WebAssembly
 - ✅ **Multi-Input Support** - Keyboard, mouse, and touch controls
 - ✅ **Responsive Design** - Adapts to different screen sizes and orientations
@@ -62,6 +63,7 @@ npm run build
 - **B** - Cycle background modes (starfield/procedural/none)
 - **G** - Toggle coordinate grid overlay
 - **F** - Toggle FPS counter
+- **P** - Toggle performance profiling overlay
 - **?** - Toggle help and debug menu
 
 ### Debug Controls (in help menu)
@@ -169,8 +171,11 @@ docker push your-username/black-hole-sim:latest
 ### Building Components
 
 ```bash
-# Build WASM package
+# Build WASM package with debug symbols for profiling
 wasm-pack build renderer --target web
+
+# Build optimized release with debug symbols (for flame graphs)
+cargo build --release
 
 # Run native version
 cargo run -p renderer
@@ -182,11 +187,26 @@ cargo test
 cargo fmt && cargo clippy
 ```
 
+**Note**: The project uses a custom `dev-release` profile that includes DWARF debug information for development builds (`npm run serve`) to enable meaningful function names in performance profiling and flame graphs. Production builds (`npm run build`) exclude debug info for smaller binary size.
+
 ### Debug Features
 - **Real-time FPS counter**: Accurate framerate calculation using performance.now()
 - **Position/velocity display**: Current camera state information
 - **Parameter visualization**: Live values for all physics parameters
 - **Grid overlay**: Coordinate reference system
+
+### Performance Profiling
+- **High-Precision Timing**: Microsecond-level accuracy (0.0001ms precision)
+- **Real-Time Metrics**: Live frame time monitoring with 60-frame rolling averages
+- **Cross-Platform Support**: Works in both native and WebAssembly builds
+- **DWARF Debug Symbols**: Enables meaningful function names in flame graphs for performance analysis
+- **Detailed Breakdown**:
+  - **CPU Frame Time**: Total frame processing time
+  - **Update Time**: Input handling and state updates
+  - **Render Encode Time**: GPU command encoding
+  - **GPU Timing**: Hardware render time (when supported by WebGPU)
+
+Enable profiling with the **P** key to monitor performance bottlenecks and optimize rendering quality.
 
 ## Future Roadmap
 

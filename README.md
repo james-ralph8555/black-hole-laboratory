@@ -2,6 +2,8 @@
 
 A real-time, physically-accurate black hole simulator built with Rust and WebGPU. This application visualizes spinning Kerr black holes using advanced general relativity physics, featuring gravitational lensing, frame-dragging effects, and interactive controls for exploring black hole dynamics.
 
+![Demo](assets/demo.jpg)
+
 ## Features
 
 - ✅ **Kerr Black Hole Physics** - Accurate simulation of rotating black holes with configurable mass and spin
@@ -12,10 +14,6 @@ A real-time, physically-accurate black hole simulator built with Rust and WebGPU
 - ✅ **Cross-Platform** - Runs natively and in web browsers via WebAssembly
 - ✅ **Multi-Input Support** - Keyboard, mouse, and touch controls
 - ✅ **Responsive Design** - Adapts to different screen sizes and orientations
-
-## Live Demo
-
-Experience the simulator directly in your browser: [Live Demo](https://your-deployment-url.com)
 
 ## Quick Start
 
@@ -229,12 +227,7 @@ While the current implementation provides a sophisticated foundation with accura
 5. Run `cargo test && cargo clippy`
 6. Submit a pull request
 
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
 ## Acknowledgements
 
 - **Milky Way background**: © 2009 [European Southern Observatory](http://www.eso.org/) (S. Brunier) under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
-- **Physics References**: Misner, Thorne & Wheeler's "Gravitation" and Chandrasekhar's "The Mathematical Theory of Black Holes"
 - **WebGPU Implementation**: Built with [wgpu-rs](https://github.com/gfx-rs/wgpu) graphics library

@@ -28,6 +28,11 @@ struct BlackHoleUniform {
 @group(1) @binding(0)
 var<uniform> black_hole: BlackHoleUniform;
 
+@group(2) @binding(0)
+var t_sky: texture_2d<f32>;
+@group(2) @binding(1)
+var s_sky: sampler;
+
 struct VertexInput {
     @location(0) position: vec3<f32>,
     @location(1) tex_coords: vec2<f32>,
@@ -102,32 +107,20 @@ fn trace_ray(start_pos: vec3<f32>, ray_dir: vec3<f32>, mass: f32, max_steps: i32
 
 // Sample environment (stars, etc.) based on ray direction
 fn sample_environment(dir: vec3<f32>) -> vec3<f32> {
-    // Convert direction to spherical coordinates (lat/lon)
+    // Convert direction to spherical coordinates for equirectangular mapping.
+    // The horizontal texture coordinate (u) is flipped to correctly map the panoramic skybox.
     let uv = vec2<f32>(
-        atan2(dir.z, dir.x) / (2.0 * 3.14159) + 0.5,
+        1.0 - (atan2(dir.x, dir.z) / (2.0 * 3.14159) + 0.5),
         acos(dir.y) / 3.14159
     );
-    
+
     var color = vec3<f32>(0.0);
-    
-    // Background color (solid or gradient)
+
     if (camera.show_stars > 0.5) {
-        // Show stars
-        let star_density = 500.0;
-        let star_coords = floor(uv * star_density);
-        let star_hash = fract(sin(dot(star_coords, vec2<f32>(12.9898, 78.233))) * 43758.5453);
-        
-        if (star_hash > 0.995) {
-            color = vec3<f32>(1.0, 1.0, 0.8); // Bright star
-        } else if (star_hash > 0.99) {
-            color = vec3<f32>(0.5, 0.5, 0.4); // Dim star
-        } else {
-            // Space background with slight gradient
-            let gradient = 0.1 * (1.0 - abs(dir.y));
-            color = vec3<f32>(gradient * 0.1, gradient * 0.15, gradient * 0.3);
-        }
+        // Sample the skybox texture.
+        color = textureSample(t_sky, s_sky, uv).rgb;
     } else {
-        // Solid gradient background
+        // Fallback to a solid gradient background.
         let gradient = 0.3 * (1.0 - abs(dir.y));
         color = vec3<f32>(gradient * 0.2, gradient * 0.3, gradient * 0.6);
     }

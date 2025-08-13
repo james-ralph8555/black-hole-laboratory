@@ -1,4 +1,5 @@
 use cfg_if::cfg_if;
+mod texture;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -97,6 +98,8 @@ struct State<'a> {
     black_hole_uniform: BlackHoleUniform,
     black_hole_buffer: wgpu::Buffer,
     black_hole_bind_group: wgpu::BindGroup,
+    sky_texture: texture::Texture,
+    sky_bind_group: wgpu::BindGroup,
     #[cfg(not(target_arch = "wasm32"))]
     last_render_time: std::time::Instant,
 }
@@ -304,6 +307,48 @@ impl<'a> State<'a> {
             label: Some("black_hole_bind_group"),
         });
 
+        let sky_bytes = include_bytes!("milkyway.jpg");
+        let sky_texture =
+            texture::Texture::from_bytes(&device, &queue, sky_bytes, "milkyway.jpg").unwrap();
+
+        let texture_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            multisampled: false,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                ],
+                label: Some("texture_bind_group_layout"),
+            });
+
+        let sky_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&sky_texture.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&sky_texture.sampler),
+                },
+            ],
+            label: Some("sky_bind_group"),
+        });
+
         // Create the shader module
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
@@ -311,11 +356,16 @@ impl<'a> State<'a> {
         });
 
         // Create the render pipeline
-        let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[&camera_bind_group_layout, &black_hole_bind_group_layout],
-            push_constant_ranges: &[],
-        });
+        let render_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Render Pipeline Layout"),
+                bind_group_layouts: &[
+                    &camera_bind_group_layout,
+                    &black_hole_bind_group_layout,
+                    &texture_bind_group_layout,
+                ],
+                push_constant_ranges: &[],
+            });
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
@@ -380,6 +430,8 @@ impl<'a> State<'a> {
             black_hole_uniform,
             black_hole_buffer,
             black_hole_bind_group,
+            sky_texture,
+            sky_bind_group,
             #[cfg(not(target_arch = "wasm32"))]
             last_render_time: std::time::Instant::now(),
         }
@@ -521,6 +573,7 @@ impl<'a> State<'a> {
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
             render_pass.set_bind_group(1, &self.black_hole_bind_group, &[]);
+            render_pass.set_bind_group(2, &self.sky_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1);

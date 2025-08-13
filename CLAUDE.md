@@ -33,7 +33,7 @@ The project is a Rust workspace with clear separation of concerns:
 
 ### `simulation` crate (`simulation/`)
 - **Purpose**: Pure physics calculations for general relativity
-- **Current state**: Contains foundational structs for physics simulation (`VolumetricMass`, `Geodesic`, `LightRay`) and a simplified Schwarzschild metric implementation. The main ray tracing logic is currently implemented directly in the shader for performance.
+- **Current state**: Contains foundational structs for physics simulation (`KerrBlackHole`, `Geodesic`, `KerrLightRay`) and comprehensive Kerr metric implementation with adaptive RK45 integration. The main ray tracing logic is currently implemented directly in the shader for performance.
 - **Future**: Will implement Kerr-Schild coordinates, Christoffel symbols, and more accurate geodesic equation integration using the `LightRay` struct.
 - **Dependencies**: None (pure math)
 

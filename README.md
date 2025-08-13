@@ -175,7 +175,7 @@ The project is structured as a Rust workspace to maintain a clean separation of 
 ### `simulation` Crate
 
 *   **Responsibilities**: Pure physics calculations.
-*   Contains the foundational data structures (`VolumetricMass`, `Geodesic`) and logic for simulating general relativity.
+*   Contains the foundational data structures (`KerrBlackHole`, `Geodesic`, `KerrLightRay`) and logic for simulating general relativity with Kerr metric support.
 *   The goal is for this crate to define the spacetime metric (e.g., in Kerr-Schild coordinates), calculate Christoffel symbols, and provide a robust geodesic equation solver (e.g., using Runge-Kutta 4).
 *   It is compiled to a library that is used by the `renderer` crate. The current ray tracing is implemented directly in the shader for performance, with plans to use this crate for more accurate physics in the future.
 

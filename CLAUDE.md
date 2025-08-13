@@ -75,7 +75,7 @@ The project uses Nix flakes for reproducible development environments:
 - **Physics target**: A simplified Schwarzschild black hole simulation is implemented directly in the fragment shader.
 - **Ray tracing approach**: The fragment shader performs backwards ray tracing from the camera for each pixel. The path of each ray is deflected based on a simplified gravitational model, producing a gravitational lensing effect.
 - **Coordinate system**: Currently uses a simplified model. Plans to use Kerr-Schild coordinates to avoid singularities at the event horizon for a more accurate simulation.
-- **Integration method**: Plans to use 4th-order Runge-Kutta for geodesic equation
+- **Integration method**: Plans to use an adaptive 4th-order Runge-Kutta (e.g., RK45) for geodesic integration.
 
 ## Deployment
 
@@ -95,11 +95,30 @@ The project is configured for deployment on AWS Amplify using a custom Docker bu
 
 ## Future Roadmap
 
-The codebase is designed for extensibility. Current features and future plans include:
-- [x] **Schwarzschild Black Hole**: A non-spinning black hole is simulated.
-- [x] **Gravitational Lensing**: The background is distorted by the black hole's gravity.
-- [ ] **Accretion Disk**: Add a glowing, superheated disk of matter orbiting the black hole.
-- [ ] **Relativistic Doppler Effects**: Model redshift/blueshift of the accretion disk.
-- [ ] **Kerr (Spinning) Black Holes**: Upgrade the simulation to a spinning black hole with frame-dragging effects.
-- [ ] **Improved Physics**: Integrate the geodesic equation using the Runge-Kutta solver in the `simulation` crate for more accurate ray paths.
-- [ ] **Multiple Black Hole Systems**: An ambitious goal to simulate binary systems.
+The codebase is designed for extensibility. The future roadmap focuses on transitioning to a more physically accurate and visually complex simulation of a spinning Kerr black hole.
+
+- [x] **Schwarzschild Black Hole**: Simulation of a non-spinning black hole is complete.
+- [x] **Gravitational Lensing**: The lensing effect is visible and emerges from the ray tracing implementation.
+- [ ] **Kerr (Spinning) Black Hole**:
+    - Transition from the Schwarzschild metric to the **Kerr metric** to simulate a rotating black hole and visualize effects like **frame-dragging**.
+    - Implement the geodesic equations in **Kerr-Schild coordinates** to ensure numerical stability across the event horizon.
+    - Reformulate the geodesic equations into a set of first-order ODEs using conserved quantities (Energy, Angular Momentum, Carter's Constant) for efficient numerical integration.
+
+- [ ] **Physically-Based Accretion Disk**:
+    - Replace the current visual placeholder with a physically-motivated accretion disk based on the **Shakura-Sunyaev "thin disk"** model.
+    - Implement the **Novikov-Thorne model** to calculate the disk's temperature profile, with the luminous inner edge defined by the spin-dependent **Innermost Stable Circular Orbit (ISCO)**.
+    - Develop an efficient algorithm to calculate ray-disk intersections, potentially using precomputed tables for real-time performance.
+
+- [ ] **Advanced Relativistic Effects**:
+    - Model **General Relativistic Magnetohydrodynamics (GRMHD)** to simulate the dynamics of plasma and magnetic fields, forming the basis for a realistic accretion disk and jets.
+    - Implement relativistic optics for light emitted from the disk, including:
+        - **Gravitational Redshift**: Light losing energy as it escapes the gravitational well.
+        - **Relativistic Doppler Effect**: Redshifting/blueshifting of light due to the disk's orbital velocity.
+        - **Relativistic Beaming**: The focusing of light in the direction of motion, making the approaching side of the disk appear significantly brighter.
+    - Map the calculated observed temperature and intensity to final pixel colors, potentially using Planck's law for blackbody radiation.
+
+- [ ] **Performance Optimization & Accuracy**:
+    - Implement an **adaptive step-size Runge-Kutta solver (e.g., RK45)** for geodesic integration, improving accuracy near the black hole without sacrificing performance.
+    - Enhance GPU acceleration by moving all ray-tracing calculations to shaders.
+    - Utilize **precomputation** for performance-critical calculations, such as ray deflection tables, disk intersection lookups, and color transformations for Doppler effects.
+    - Optimize calculations using **single-precision floating-point numbers** where possible.

@@ -227,11 +227,11 @@ impl<'a> State<'a> {
         // Create camera with aspect ratio matching the actual window size
         // Start the camera at a good position to view the black hole
         let camera = Camera::new(
-            (0.0, 0.0, -75.0),  // Start far back for better testing perspective
+            (0.0, 0.0, -50.0),  // Start far back for better testing perspective
             (0.0, 0.0, 0.0),   // Look towards the black hole at origin
             cgmath::Vector3::unit_y(),
             width as f32 / height as f32,  // Dynamic aspect ratio
-            45.0,
+            80.0,
             0.1,
             1000.0,  // Increase far plane for space exploration
         );
@@ -273,13 +273,13 @@ impl<'a> State<'a> {
         });
 
         // Create default black hole for the simulation - SCHWARZSCHILD FOR TESTING
-        let black_hole = simulation::KerrBlackHole::schwarzschild(1.0); // Pure Schwarzschild, no spin
+        let black_hole = simulation::KerrBlackHole::new(1.0, 1.0); // Maximal spin for frame-dragging
 
         // Initialize debug parameters
-        let debug_fov = 45.0;
+        let debug_fov = 80.0;
         let debug_mass = black_hole.mass;
         let debug_spin = black_hole.spin;
-        let debug_ray_steps = 400.0;
+        let debug_ray_steps = 250.0;
 
         // Create black hole uniform
         let black_hole_uniform = BlackHoleUniform {
@@ -849,10 +849,10 @@ pub fn run() {
             // Initialize global debug parameters for WASM
             unsafe {
                 DEBUG_PARAMS = Some(std::sync::Arc::new(std::sync::Mutex::new(DebugParams {
-                    fov: 45.0,
+                    fov: 80.0,
                     mass: 1.0,
-                    spin: 0.0,
-                    ray_steps: 400.0,
+                    spin: 1.0,
+                    ray_steps: 250.0,
                 })));
             }
         } else {

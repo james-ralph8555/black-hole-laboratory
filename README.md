@@ -104,44 +104,40 @@ npm run build
 
 ## Core Concepts
 
-To accurately render a black hole, we must simulate how light behaves in the intensely curved spacetime described by Einstein's theory of General Relativity.
+To accurately render a black hole, we must simulate how light behaves in the intensely curved spacetime described by Einstein's theory of General Relativity. This project models a spinning **Kerr black hole** using Kerr-Schild coordinates and incorporates advanced physics like magnetic fields and relativistic effects on an accretion disk.
 
-### The Schwarzschild Metric & Kerr-Schild Coordinates
+### From Schwarzschild to Kerr Black Holes
 
-For our initial implementation, we will model a **Schwarzschild black hole**: one that is spherically symmetric and does not spin. The geometry of spacetime around such an object is described by the Schwarzschild metric.
+While the initial model focused on a **Schwarzschild black hole** (non-rotating, spherically symmetric), this project has evolved to simulate a **Kerr black hole**. The Kerr metric is necessary to model a rotating black hole and introduces fascinating phenomena like **frame-dragging**, where the black hole's rotation literally drags spacetime along with it.
 
-However, the standard Schwarzschild coordinates have a mathematical problem called a "coordinate singularity" at the event horizon. This can cause numerical simulations to fail. To avoid this, we will use **Kerr-Schild coordinates**. These coordinates are "well-behaved" across the event horizon, making them ideal for our simulation, as we need to trace light rays that may cross this boundary.
+To handle the complexities of a spinning black hole without numerical issues, we use **Kerr-Schild coordinates**. This formulation provides a stable, singularity-free metric that is well-behaved across the event horizon, making it ideal for simulations that trace light rays near or across this boundary.
 
-The Kerr-Schild metric `g` can be expressed as a flat spacetime metric `η` plus a null vector term `k`:
-```
-gμν​=ημν​+fkμ​kν​
-```
+### Geodesic Integration in Kerr Spacetime
 
-For a Schwarzschild black hole, the function `f` is `2M/r` (where `M` is the mass and `r` is the radial coordinate), and `k` is a null vector field. This formulation is elegant and computationally advantageous.
+In curved spacetime, light follows paths called **geodesics**. For a Kerr black hole, solving the geodesic equations is simplified by exploiting four conserved quantities for photons:
+- **Energy (E)**
+- **Axial Angular Momentum (Lz)**
+- **Carter's Constant (Q)**
+- **Rest mass (μ=0 for photons)**
 
-### The Geodesic Equation
+These constants allow the complex second-order geodesic equations to be reformulated into a more manageable set of four first-order ordinary differential equations (ODEs). These equations are then solved numerically using an **adaptive 4th-order Runge-Kutta (RK45) method** to trace light rays backwards from each pixel on the screen. The adaptive step size ensures precision where spacetime curvature is high (near the black hole) and efficiency where it's flatter, stopping integration if a ray crosses the event horizon or escapes to a predefined distance.
 
-In curved spacetime, particles and light do not travel in straight lines but follow paths called **geodesics**. A geodesic is the straightest possible path through a curved manifold. For photons (light), we are interested in "null geodesics."
+### Ray Tracing and Relativistic Effects
 
-The path of a geodesic is governed by the geodesic equation:
-```
-dλ2d2xμ​+Γαβμ​dλdxα​dλdxβ​=0
-```
+The renderer works by "backwards" ray tracing from a virtual camera. The final color of each pixel is determined by what the ray encounters:
 
-*   `x^\mu`: The four-dimensional coordinates of the photon (t, x, y, z).
-*   `λ`: The affine parameter, which tracks the photon's progress along its path.
-*   `Γ^\mu_{\alpha\beta}`: The Christoffel symbols, which are functions of the metric tensor `g_{\mu\nu}`. They essentially describe the curvature of spacetime.
+*   **The Black Hole Shadow**: If a ray's path crosses the event horizon, it is trapped. The pixel is colored black, forming the black hole's "shadow."
+*   **The Accretion Disk**: If the ray intersects the accretion disk, we calculate the observed color based on several relativistic effects:
+    *   **Relativistic Doppler Effect & Beaming**: The disk's rapid orbital motion causes light from the side moving towards the camera to be blueshifted and appear brighter, while light from the receding side is redshifted and dimmer.
+    *   **Gravitational Redshift**: Photons lose energy escaping the black hole's gravity, shifting their color towards red.
+    *   The combination of these effects determines the final observed temperature and intensity of the light from that point on the disk.
+*   **Gravitational Lensing**: If a ray escapes to infinity, its final direction is used to sample a background starfield, producing the characteristic distortion of stars around the black hole.
 
-To find the path of a light ray, we must solve this system of second-order ordinary differential equations (ODEs). We will use a numerical integration method, such as the **4th-order Runge-Kutta algorithm**, to achieve this.
+### Modeling Magnetic Fields and the Accretion Disk
 
-### Ray Tracing
-
-The renderer works by "backwards" ray tracing. For each pixel on the screen, a ray is cast from a virtual camera backwards in time into the scene. A simplified geodesic solver in the fragment shader calculates the path of this ray as it travels through the curved spacetime around the black hole.
-
-The final color of the pixel is determined by the fate of the ray:
-
-*   If the ray's path ends up crossing the event horizon, it means that light from that direction is trapped by the black hole. The pixel will be colored black, forming the iconic "shadow."
-*   If the ray escapes to "infinity" (a certain distance from the black hole), its final direction is used to sample a background starfield. This process naturally produces the **gravitational lensing** effect, where the stars behind the black hole appear distorted and warped.
+To create a realistic visualization, the simulation incorporates advanced physical models:
+*   **General Relativistic Magnetohydrodynamics (GRMHD)**: This models the behavior of plasma and magnetic fields in the extreme gravity around the black hole, which is crucial for simulating accretion disks and jets. The GRMHD simulation provides the physical environment through which light rays are traced.
+*   **Physically Motivated Accretion Disk**: Instead of a simple visual disk, the model uses the **Shakura-Sunyaev "thin disk"** model. This includes a temperature profile based on the **Novikov-Thorne model** for a fully relativistic treatment, with the luminous inner edge defined by the **Innermost Stable Circular Orbit (ISCO)**. The ISCO's radius depends heavily on the black hole's spin.
 
 ## Project Architecture
 
@@ -191,12 +187,33 @@ The project is structured as a Rust workspace to maintain a clean separation of 
 
 ## Roadmap & Future Improvements
 
-This project is designed to be extensible. After establishing the core simulation of a Schwarzschild black hole, we can add more complex and visually stunning phenomena.
+This project is designed to be extensible. The current implementation provides a solid foundation for a real-time Schwarzschild black hole visualization. The next steps focus on transitioning to a more physically accurate and visually complex simulation of a spinning Kerr black hole.
 
 - [x] **Schwarzschild Black Hole**: Simulation of a non-spinning black hole is complete.
 - [x] **Gravitational Lensing**: The lensing effect is visible and emerges from the ray tracing implementation.
-- [ ] **Accretion Disk**: Add a glowing, superheated disk of matter orbiting the black hole. This will be modeled as a flat, textured disk on the equatorial plane. The ray tracing algorithm will be updated to calculate intersections with this disk.
-- [ ] **Relativistic Doppler & Beaming**: The material in the accretion disk moves at relativistic speeds. We will model the Doppler effect (redshifting and blueshifting of light) and relativistic beaming (aberration). This will make the side of the disk moving towards the camera appear brighter and bluer, while the side moving away will be dimmer and redder.
-- [ ] **Kerr (Spinning) Black Hole**: Upgrade the simulation to a Kerr black hole. This requires implementing the more complex Kerr metric. A spinning black hole drags spacetime around with it (an effect called frame-dragging), which changes the shape of the event horizon and the black hole's shadow.
-- [ ] **Improved Physics Accuracy**: Replace the simplified gravity in the shader with a more robust geodesic solver using the `simulation` crate.
-- [ ] **Multiple Black Holes**: A highly ambitious goal would be to simulate the spacetime of a binary black hole system. This would likely require moving beyond analytical metrics and into the realm of numerical relativity to approximate the combined spacetime curvature.
+- [ ] **Kerr (Spinning) Black Hole**:
+    - Transition from the Schwarzschild metric to the **Kerr metric** to simulate a rotating black hole and visualize effects like **frame-dragging**.
+    - Implement the geodesic equations in **Kerr-Schild coordinates** to ensure numerical stability across the event horizon.
+    - Reformulate the geodesic equations into a set of first-order ODEs using conserved quantities (Energy, Angular Momentum, Carter's Constant) for efficient numerical integration.
+
+- [ ] **Physically-Based Accretion Disk**:
+    - Replace the current visual placeholder with a physically-motivated accretion disk based on the **Shakura-Sunyaev "thin disk"** model.
+    - Implement the **Novikov-Thorne model** to calculate the disk's temperature profile, with the luminous inner edge defined by the spin-dependent **Innermost Stable Circular Orbit (ISCO)**.
+    - Develop an efficient algorithm to calculate ray-disk intersections, potentially using precomputed tables for real-time performance.
+
+- [ ] **Advanced Relativistic Effects**:
+    - Model **General Relativistic Magnetohydrodynamics (GRMHD)** to simulate the dynamics of plasma and magnetic fields, forming the basis for a realistic accretion disk and jets.
+    - Implement relativistic optics for light emitted from the disk, including:
+        - **Gravitational Redshift**: Light losing energy as it escapes the gravitational well.
+        - **Relativistic Doppler Effect**: Redshifting/blueshifting of light due to the disk's orbital velocity.
+        - **Relativistic Beaming**: The focusing of light in the direction of motion, making the approaching side of the disk appear significantly brighter.
+    - Map the calculated observed temperature and intensity to final pixel colors, potentially using Planck's law for blackbody radiation.
+
+- [ ] **Performance Optimization & Accuracy**:
+    - Implement an **adaptive step-size Runge-Kutta solver (e.g., RK45)** for geodesic integration, improving accuracy near the black hole without sacrificing performance.
+    - Enhance GPU acceleration by moving all ray-tracing calculations to shaders.
+    - Utilize **precomputation** for performance-critical calculations, such as ray deflection tables, disk intersection lookups, and color transformations for Doppler effects.
+    - Optimize calculations using **single-precision floating-point numbers** where possible.
+
+- [ ] **Multiple Black Holes**:
+    - A highly ambitious goal would be to simulate the spacetime of a binary black hole system. This would likely require moving beyond analytical metrics and into the realm of numerical relativity to approximate the combined spacetime curvature.

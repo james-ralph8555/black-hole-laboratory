@@ -139,7 +139,11 @@ pub struct CameraController {
     amount_backward: f32,
     amount_up: f32,
     amount_down: f32,
+    mousewheel_forward: f32,
     speed: f32,
+    max_speed: f32,
+    acceleration: f32,
+    pub current_velocity: Vector3<f32>,
     sensitivity: f32,
     pub yaw: f32,
     pub pitch: f32,
@@ -153,7 +157,6 @@ pub struct CameraController {
     pub show_stars: bool,
     pub show_grid: bool,
     pub show_help: bool,
-    pub help_startup_timer: f32,
     pub last_key: Option<KeyCode>,
     pub frame_count: u32,
     pub fps: f32,
@@ -169,7 +172,11 @@ impl CameraController {
             amount_backward: 0.0,
             amount_up: 0.0,
             amount_down: 0.0,
+            mousewheel_forward: 0.0,
             speed,
+            max_speed: speed * 3.0,  // Maximum speed is 3x base speed
+            acceleration: speed * 5.0,  // Acceleration rate
+            current_velocity: Vector3::zero(),
             sensitivity: 0.1,
             yaw: 270.0, // 270° looks towards -Z (black hole at origin from camera at -Z)
             pitch: 0.0,
@@ -183,7 +190,6 @@ impl CameraController {
             show_stars: true,
             show_grid: false,
             show_help: false,  // Start with help hidden (flash message shows instead)
-            help_startup_timer: 5.0,  // Timer for flash message duration
             last_key: None,
             frame_count: 0,
             fps: 0.0,
@@ -212,6 +218,19 @@ impl CameraController {
             self.pitch -= delta.y as f32 * self.sensitivity;
         }
         self.last_mouse_pos = Some(current_pos);
+    }
+
+    pub fn process_scroll(&mut self, delta: winit::event::MouseScrollDelta) {
+        match delta {
+            winit::event::MouseScrollDelta::LineDelta(_x, y) => {
+                // Each line is typically equivalent to 3 units of movement
+                self.mousewheel_forward += y * 3.0;
+            }
+            winit::event::MouseScrollDelta::PixelDelta(pos) => {
+                // Convert pixel delta to movement (scale down as pixels are small)
+                self.mousewheel_forward += pos.y as f32 * 0.01;
+            }
+        }
     }
 
     pub fn process_touch(&mut self, touch: &winit::event::Touch, window_size: winit::dpi::PhysicalSize<u32>) {
@@ -319,8 +338,6 @@ impl CameraController {
                 // Toggle help with ? key
                 if state == ElementState::Pressed {
                     self.show_help = !self.show_help;
-                    // Reset startup timer when manually toggled
-                    self.help_startup_timer = 0.0;
                 }
                 true
             }
@@ -357,13 +374,7 @@ impl CameraController {
             self.last_fps_time = 0.0;
         }
 
-        // Handle startup help timer
-        if self.help_startup_timer > 0.0 {
-            self.help_startup_timer -= dt;
-            if self.help_startup_timer <= 0.0 {
-                self.show_help = false;  // Auto-hide help after timeout
-            }
-        }
+        // Note: Startup help flash message is now handled purely in JavaScript
 
         // Handle touch input for movement
         let mut touch_fwd = 0.0;
@@ -375,13 +386,48 @@ impl CameraController {
             touch_strafe = (delta.x / joystick_radius).clamp(-1.0, 1.0) as f32;
         }
 
-        // Move camera position using the calculated direction vectors
+        // Calculate desired movement input with acceleration
         // Negate forward movement so W moves toward black hole at origin
-        let move_forward = self.amount_forward + touch_fwd;
+        let move_forward = self.amount_forward + touch_fwd + (self.mousewheel_forward * 0.1);
         let move_strafe = (self.amount_right - self.amount_left) + touch_strafe;
-        camera.eye += forward * (self.amount_backward - move_forward) * self.speed * dt;
-        camera.eye += right * move_strafe * self.speed * dt;
-        camera.eye += up * (self.amount_up - self.amount_down) * self.speed * dt;
+        let move_vertical = self.amount_up - self.amount_down;
+        
+        // Calculate target velocity based on input
+        let target_velocity = Vector3::new(
+            move_strafe * self.max_speed,
+            move_vertical * self.max_speed,
+            (self.amount_backward - move_forward) * self.max_speed
+        );
+        
+        // Apply acceleration towards target velocity
+        let velocity_diff = target_velocity - self.current_velocity;
+        let velocity_diff_magnitude = velocity_diff.magnitude();
+        
+        if velocity_diff_magnitude > 0.01 {
+            let acceleration_step = velocity_diff.normalize() * self.acceleration * dt;
+            
+            // Limit acceleration step to not overshoot target
+            if acceleration_step.magnitude() > velocity_diff_magnitude {
+                self.current_velocity = target_velocity;
+            } else {
+                self.current_velocity += acceleration_step;
+            }
+        } else {
+            self.current_velocity = target_velocity;
+        }
+        
+        // Apply velocity with dampening when no input
+        if target_velocity.magnitude() < 0.01 {
+            self.current_velocity *= 0.95; // Gradual slowdown when no input
+        }
+        
+        // Move camera using current velocity in world space
+        camera.eye += forward * self.current_velocity.z * dt;
+        camera.eye += right * self.current_velocity.x * dt;
+        camera.eye += up * self.current_velocity.y * dt;
+        
+        // Decay mousewheel input
+        self.mousewheel_forward *= 0.9;
 
         // Update target to be in front of camera
         camera.target = camera.eye + forward;

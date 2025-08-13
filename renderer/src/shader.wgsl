@@ -183,17 +183,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Trace the ray through spacetime from camera position
     var color = trace_ray(camera.camera_pos, ray_dir, black_hole.mass, 200);
     
-    // Add help indicator (subtle border flash when help is active)
-    if (camera.show_help > 0.5) {
-        let screen_edge = max(
-            max(abs(screen_pos.x) - 0.95, 0.0),
-            max(abs(screen_pos.y) - 0.95, 0.0)
-        );
-        if (screen_edge > 0.0) {
-            let flash_intensity = sin(length(camera.camera_pos) * 0.1) * 0.5 + 0.5;
-            color = mix(color, vec3<f32>(0.0, 1.0, 1.0), screen_edge * 0.3 * flash_intensity);
-        }
-    }
-    
     return vec4<f32>(color, 1.0);
 }

@@ -23,7 +23,7 @@ extern "C" {
     fn js_set_help_visible(visible: bool);
     
     #[wasm_bindgen(js_name = updateDebugInfo)]
-    fn js_update_debug_info(position: &[f32], orientation: &[f32], last_key: &str, fps: f32, render_width: f32, render_height: f32);
+    fn js_update_debug_info(position: &[f32], orientation: &[f32], last_key: &str, fps: f32, render_width: f32, render_height: f32, velocity: &[f32]);
 }
 
 use wgpu::util::DeviceExt;
@@ -370,7 +370,7 @@ impl<'a> State<'a> {
             camera_bind_group,
             camera_controller,
             black_hole,
-            last_help_state: true,
+            last_help_state: false,  // Match camera_controller.show_help initial state
             black_hole_uniform,
             black_hole_buffer,
             black_hole_bind_group,
@@ -405,6 +405,10 @@ impl<'a> State<'a> {
             }
             WindowEvent::Touch(touch) => {
                 self.camera_controller.process_touch(touch, self.size);
+                true
+            }
+            WindowEvent::MouseWheel { delta, .. } => {
+                self.camera_controller.process_scroll(*delta);
                 true
             }
             _ => false,
@@ -467,11 +471,12 @@ impl<'a> State<'a> {
             if self.camera_controller.show_help {
                 let position = [self.camera.eye.x, self.camera.eye.y, self.camera.eye.z];
                 let orientation = [self.camera_controller.yaw, self.camera_controller.pitch];
+                let velocity = [self.camera_controller.current_velocity.x, self.camera_controller.current_velocity.y, self.camera_controller.current_velocity.z];
                 let last_key = self.camera_controller.last_key
                     .map(|k| format!("{:?}", k))
                     .unwrap_or_else(|| "None".to_string());
                 
-                js_update_debug_info(&position, &orientation, &last_key, self.camera_controller.fps, self.config.width as f32, self.config.height as f32);
+                js_update_debug_info(&position, &orientation, &last_key, self.camera_controller.fps, self.config.width as f32, self.config.height as f32, &velocity);
             }
         }
 

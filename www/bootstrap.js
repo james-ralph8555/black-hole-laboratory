@@ -15,8 +15,8 @@ function setupCanvas() {
     
     // Set canvas resolution to match viewport (with device pixel ratio consideration)
     const devicePixelRatio = window.devicePixelRatio || 1;
-    const renderWidth = Math.floor(displayWidth * devicePixelRatio);
-    const renderHeight = Math.floor(displayHeight * devicePixelRatio);
+    const renderWidth = displayWidth * devicePixelRatio;
+    const renderHeight = displayHeight * devicePixelRatio;
     
     canvas.width = renderWidth;
     canvas.height = renderHeight;

@@ -31,18 +31,20 @@
             
             #help-overlay {
                 position: fixed;
-                top: 20px;
-                left: 20px;
-                background: rgba(0, 20, 40, 0.95);
-                color: #00ffff;
-                padding: 20px;
-                border: 2px solid #00ffff;
-                border-radius: 10px;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(50, 50, 50, 0.95);
+                color: #ffffff;
+                padding: 25px;
+                border: 1px solid #888888;
+                border-radius: 8px;
                 font-family: 'Courier New', monospace;
                 font-size: 14px;
                 line-height: 1.4;
-                max-width: 500px;
-                box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+                max-width: 600px;
+                max-height: 80vh;
+                overflow-y: auto;
                 z-index: 1000;
                 display: none;
                 white-space: pre-line;
@@ -50,27 +52,29 @@
             
             #help-overlay h1 {
                 margin: 0 0 15px 0;
-                color: #ffff00;
-                font-size: 16px;
+                color: #ffffff;
+                font-size: 18px;
                 text-align: center;
+                font-weight: bold;
             }
             
             #help-overlay .section {
-                margin-bottom: 12px;
+                margin-bottom: 15px;
             }
             
             #help-overlay .section-title {
-                color: #00ffaa;
+                color: #cccccc;
                 font-weight: bold;
-                margin-bottom: 5px;
+                margin-bottom: 8px;
+                font-size: 15px;
             }
             
             #help-overlay .debug-info {
-                background: rgba(0, 40, 80, 0.7);
-                padding: 8px;
+                background: rgba(30, 30, 30, 0.8);
+                padding: 12px;
                 border-radius: 5px;
-                margin: 10px 0;
-                border: 1px solid #004080;
+                margin: 15px 0;
+                border: 1px solid #666666;
             }
             
             #help-flash {
@@ -92,8 +96,50 @@
             }
             
             @keyframes helpPulse {
-                0%, 100% { opacity: 0.8; }
+                0%, 100% { opacity: 0.9; }
                 50% { opacity: 1.0; }
+            }
+            
+            #touch-controls-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                pointer-events: none;
+                z-index: 1002;
+                display: none;
+            }
+            
+            .touch-region {
+                position: absolute;
+                border: 2px solid #00ffff;
+                background: rgba(0, 255, 255, 0.1);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-family: 'Courier New', monospace;
+                font-size: 16px;
+                color: #00ffff;
+                text-align: center;
+                font-weight: bold;
+                text-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+            }
+            
+            .touch-region-left {
+                left: 0;
+                top: 0;
+                width: 50%;
+                height: 100%;
+                border-right: 1px solid #00ffff;
+            }
+            
+            .touch-region-right {
+                right: 0;
+                top: 0;
+                width: 50%;
+                height: 100%;
+                border-left: 1px solid #00ffff;
             }
         </style>
     </head>
@@ -103,12 +149,24 @@
         
         <div id="help-flash">Press ? for help</div>
         
+        <div id="touch-controls-overlay">
+            <div class="touch-region touch-region-left">
+                👆 MOVEMENT<br>
+                Virtual Joystick
+            </div>
+            <div class="touch-region touch-region-right">
+                👆 LOOK AROUND<br>
+                Drag to Turn
+            </div>
+        </div>
+        
         <div id="help-overlay">
             <h1>🕳️ BLACK HOLE SIMULATOR</h1>
             <div class="section">
                 <div class="section-title">MOVEMENT CONTROLS:</div>
                 <div>W/A/S/D     - Move forward/left/backward/right</div>
                 <div>Space/Shift - Move up/down</div>
+                <div>Mouse Wheel - Move forward/backward</div>
                 <div>Q/E         - Turn left/right</div>
                 <div>Mouse Drag  - Look around (Desktop)</div>
                 <div>Touch       - Left: Joystick, Right: Look (Mobile)</div>
@@ -123,6 +181,7 @@
                 <div class="section-title">DEBUG INFO:</div>
                 <div id="debug-position">Position: (0.00, 0.00, 10.00)</div>
                 <div id="debug-orientation">Orientation: Yaw 270.0°, Pitch 0.0°</div>
+                <div id="debug-velocity">Velocity: (0.00, 0.00, 0.00)</div>
                 <div id="debug-lastkey">Last Key: None</div>
                 <div id="debug-fps">FPS: 0.0</div>
                 <div id="debug-resolution">Resolution: 1920x1080</div>

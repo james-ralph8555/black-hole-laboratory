@@ -39,6 +39,10 @@ struct BlackHoleUniform {
     position: [f32; 3],
     /// Mass of black hole
     mass: f32,
+    /// Spin parameter (dimensionless)
+    spin: f32,
+    /// Padding for alignment
+    _padding: [f32; 3],
 }
 
 #[repr(C)]
@@ -88,7 +92,7 @@ struct State<'a> {
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     camera_controller: CameraController,
-    black_hole: simulation::VolumetricMass,
+    black_hole: simulation::KerrBlackHole,
     last_help_state: bool,
     black_hole_uniform: BlackHoleUniform,
     black_hole_buffer: wgpu::Buffer,
@@ -257,12 +261,14 @@ impl<'a> State<'a> {
         });
 
         // Create default black hole for the simulation
-        let black_hole = simulation::create_default_black_hole();
+        let black_hole = simulation::KerrBlackHole::new(1.0, 0.7); // Mass = 1, moderate spin
 
         // Create black hole uniform
         let black_hole_uniform = BlackHoleUniform {
-            position: black_hole.position,
+            position: [0.0, 0.0, 0.0], // Centered at origin
             mass: black_hole.mass,
+            spin: black_hole.spin,
+            _padding: [0.0; 3],
         };
 
         let black_hole_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {

@@ -154,10 +154,12 @@ The project is structured as a Rust workspace to maintain a clean separation of 
 |   |-- Cargo.toml
 |   |-- src/
 |   |   |-- camera.rs     // Camera and controls
+|   |   |-- geometry.rs   // Vertex data for the screen quad
 |   |   |-- lib.rs        // Core renderer logic (WASM entry)
 |   |   |-- main.rs       // Native entry point
+|   |   |-- shader.wgsl   // WGSL shader source (embedded)
 |   |-- shaders/
-|       |-- render.wgsl   // The WGSL shader for ray tracing
+|       |-- render.wgsl   // The primary WGSL shader for ray tracing
 |-- /simulation
 |   |-- Cargo.toml
 |   |-- src/lib.rs        // Physics logic (geodesics, metrics)
@@ -165,6 +167,8 @@ The project is structured as a Rust workspace to maintain a clean separation of 
 |   |-- bootstrap.js      // JS entry point for WASM
 |   |-- index.html
 |   |-- package.json
+|   |-- pkg/              // Generated WASM package for JS interop
+|   |-- style.css         // CSS for the web page
 |   |-- webpack.config.js
 ```
 

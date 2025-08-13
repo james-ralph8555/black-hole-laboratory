@@ -211,7 +211,7 @@ impl<'a> State<'a> {
         // Create camera with aspect ratio matching the actual window size
         // Start the camera at a good position to view the black hole
         let camera = Camera::new(
-            (0.0, 0.0, -10.0),  // Start behind black hole so W moves toward it
+            (0.0, 0.0, -15.0),  // Start behind black hole so W moves toward it
             (0.0, 0.0, 0.0),   // Look towards the black hole at origin
             cgmath::Vector3::unit_y(),
             width as f32 / height as f32,  // Dynamic aspect ratio

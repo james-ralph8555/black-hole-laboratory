@@ -100,6 +100,7 @@ struct State<'a> {
     black_hole_bind_group: wgpu::BindGroup,
     sky_texture: texture::Texture,
     sky_bind_group: wgpu::BindGroup,
+    background_mode: u32,
     #[cfg(not(target_arch = "wasm32"))]
     last_render_time: std::time::Instant,
 }
@@ -428,6 +429,7 @@ impl<'a> State<'a> {
             black_hole_bind_group,
             sky_texture,
             sky_bind_group,
+            background_mode: 0, // 0: texture, 1: procedural, 2: none
             #[cfg(not(target_arch = "wasm32"))]
             last_render_time: std::time::Instant::now(),
         }
@@ -439,12 +441,25 @@ impl<'a> State<'a> {
             WindowEvent::KeyboardInput {
                 event:
                     KeyEvent {
-                        physical_key: PhysicalKey::Code(key),
+                        physical_key,
                         state,
                         ..
                     },
                 ..
-            } => self.camera_controller.process_keyboard(*key, *state),
+            } => {
+                if *state == winit::event::ElementState::Pressed {
+                    if let PhysicalKey::Code(winit::keyboard::KeyCode::KeyB) = *physical_key {
+                        self.background_mode = (self.background_mode + 1) % 3;
+                        return true;
+                    }
+                }
+                
+                if let PhysicalKey::Code(key) = *physical_key {
+                    self.camera_controller.process_keyboard(key, *state)
+                } else {
+                    false
+                }
+            }
             WindowEvent::MouseInput { state, button, .. } => {
                 if *button == winit::event::MouseButton::Left {
                     self.camera_controller.process_mouse_button(*state);
@@ -502,14 +517,16 @@ impl<'a> State<'a> {
         }
 
         // Update camera uniform with toggle states and current resolution
+        let show_stars = self.background_mode != 2;
         self.camera_uniform.update_view_proj_with_resolution(
             &self.camera, 
-            self.camera_controller.show_stars, 
+            show_stars, 
             self.camera_controller.show_grid, 
             self.camera_controller.show_help,
             self.config.width as f32,
             self.config.height as f32
         );
+        self.camera_uniform._padding1 = if self.background_mode == 1 { 1.0 } else { 0.0 };
         self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
 
         // Update HTML help overlay for WASM

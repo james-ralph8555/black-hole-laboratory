@@ -3,7 +3,7 @@
 struct CameraUniform {
     view_proj: mat4x4<f32>,
     camera_pos: vec3<f32>,
-    _padding1: f32,
+    background_mode: f32,
     camera_forward: vec3<f32>,
     _padding2: f32,
     camera_right: vec3<f32>,
@@ -117,10 +117,27 @@ fn sample_environment(dir: vec3<f32>) -> vec3<f32> {
     var color = vec3<f32>(0.0);
 
     if (camera.show_stars > 0.5) {
-        // Sample the skybox texture.
-        color = textureSample(t_sky, s_sky, uv).rgb;
+        if (camera.background_mode < 0.5) {
+            // Mode 0: Skybox texture
+            color = textureSample(t_sky, s_sky, uv).rgb;
+        } else {
+            // Mode 1: Procedural stars
+            let star_density = 500.0;
+            let star_coords = floor(uv * star_density);
+            let star_hash = fract(sin(dot(star_coords, vec2<f32>(12.9898, 78.233))) * 43758.5453);
+            
+            if (star_hash > 0.995) {
+                color = vec3<f32>(1.0, 1.0, 0.8); // Bright star
+            } else if (star_hash > 0.99) {
+                color = vec3<f32>(0.5, 0.5, 0.4); // Dim star
+            } else {
+                // Space background with slight gradient
+                let gradient = 0.1 * (1.0 - abs(dir.y));
+                color = vec3<f32>(gradient * 0.1, gradient * 0.15, gradient * 0.3);
+            }
+        }
     } else {
-        // Fallback to a solid gradient background.
+        // Mode 2: No background (solid gradient)
         let gradient = 0.3 * (1.0 - abs(dir.y));
         color = vec3<f32>(gradient * 0.2, gradient * 0.3, gradient * 0.6);
     }

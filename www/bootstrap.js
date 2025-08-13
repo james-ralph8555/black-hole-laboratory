@@ -39,22 +39,59 @@ function setupCanvas() {
 // Help overlay management
 let helpVisible = false; // Start with help hidden
 let helpFlashVisible = true; // Start with flash message visible
-let helpStartupTimer = 5000; // 5 seconds in milliseconds
+let helpStartupTimer = 3000; // 3 seconds in milliseconds
+
+function isMobileDevice() {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+         ('ontouchstart' in window) || 
+         (navigator.maxTouchPoints > 0);
+}
 
 function setupHelpOverlay() {
   const helpOverlay = document.getElementById('help-overlay');
   const helpFlash = document.getElementById('help-flash');
-  if (!helpOverlay || !helpFlash) return;
+  const touchControlsOverlay = document.getElementById('touch-controls-overlay');
+  if (!helpOverlay || !helpFlash || !touchControlsOverlay) return;
   
-  // Start with full help hidden and flash message visible
+  // Start with full help hidden and appropriate startup message visible
   helpOverlay.style.display = 'none';
-  helpFlash.style.display = 'block';
   
-  // Auto-hide flash message after startup timer
+  const isMobile = isMobileDevice();
+  
+  if (isMobile) {
+    // On mobile, show touch control regions instead of text message
+    helpFlash.style.display = 'none';
+    touchControlsOverlay.style.display = 'block';
+  } else {
+    // On desktop, show text message
+    helpFlash.style.display = 'block';
+    touchControlsOverlay.style.display = 'none';
+  }
+  
+  // Auto-fade startup message after timer
   setTimeout(() => {
     if (helpFlashVisible) {
-      helpFlash.style.display = 'none';
-      helpFlashVisible = false;
+      if (isMobile) {
+        // Fade out touch controls overlay
+        touchControlsOverlay.style.transition = 'opacity 1s ease-out';
+        touchControlsOverlay.style.opacity = '0';
+        setTimeout(() => {
+          if (helpFlashVisible) {
+            touchControlsOverlay.style.display = 'none';
+            helpFlashVisible = false;
+          }
+        }, 1000);
+      } else {
+        // Fade out text message
+        helpFlash.style.transition = 'opacity 1s ease-out';
+        helpFlash.style.opacity = '0';
+        setTimeout(() => {
+          if (helpFlashVisible) {
+            helpFlash.style.display = 'none';
+            helpFlashVisible = false;
+          }
+        }, 1000);
+      }
     }
   }, helpStartupTimer);
 }
@@ -63,14 +100,32 @@ function setupHelpOverlay() {
 window.toggleHelp = function() {
   const helpOverlay = document.getElementById('help-overlay');
   const helpFlash = document.getElementById('help-flash');
-  if (!helpOverlay || !helpFlash) return;
+  const touchControlsOverlay = document.getElementById('touch-controls-overlay');
+  if (!helpOverlay || !helpFlash || !touchControlsOverlay) return;
   
   helpVisible = !helpVisible;
   helpOverlay.style.display = helpVisible ? 'block' : 'none';
   
-  // Hide flash message when user manually toggles help
+  // Fade out startup message when user manually toggles help
   if (helpFlashVisible) {
-    helpFlash.style.display = 'none';
+    const isMobile = isMobileDevice();
+    
+    if (isMobile) {
+      // Fade out touch controls overlay
+      touchControlsOverlay.style.transition = 'opacity 0.3s ease-out';
+      touchControlsOverlay.style.opacity = '0';
+      setTimeout(() => {
+        touchControlsOverlay.style.display = 'none';
+      }, 300);
+    } else {
+      // Fade out text message
+      helpFlash.style.transition = 'opacity 0.3s ease-out';
+      helpFlash.style.opacity = '0';
+      setTimeout(() => {
+        helpFlash.style.display = 'none';
+      }, 300);
+    }
+    
     helpFlashVisible = false;
   }
   
@@ -80,27 +135,45 @@ window.toggleHelp = function() {
 
 window.setHelpVisible = function(visible) {
   const helpOverlay = document.getElementById('help-overlay');
-  const helpFlash = document.getElementById('help-flash');
-  if (!helpOverlay || !helpFlash) return;
+  if (!helpOverlay) return;
   
   helpVisible = visible;
   helpOverlay.style.display = helpVisible ? 'block' : 'none';
   
-  // Hide flash message when help state is manually set
-  if (helpFlashVisible) {
-    helpFlash.style.display = 'none';
+  // Only hide startup message if help is being shown (user manually opened help)
+  // Don't hide on automatic state sync when help is false
+  if (visible && helpFlashVisible) {
+    const helpFlash = document.getElementById('help-flash');
+    const touchControlsOverlay = document.getElementById('touch-controls-overlay');
+    const isMobile = isMobileDevice();
+    
+    if (isMobile && touchControlsOverlay) {
+      // Fade out touch controls overlay
+      touchControlsOverlay.style.transition = 'opacity 0.3s ease-out';
+      touchControlsOverlay.style.opacity = '0';
+      setTimeout(() => {
+        touchControlsOverlay.style.display = 'none';
+      }, 300);
+    } else if (helpFlash) {
+      // Fade out text message
+      helpFlash.style.transition = 'opacity 0.3s ease-out';
+      helpFlash.style.opacity = '0';
+      setTimeout(() => {
+        helpFlash.style.display = 'none';
+      }, 300);
+    }
+    
     helpFlashVisible = false;
   }
-  
-  // Disable auto-hide timer when manually set
-  helpStartupTimer = 0;
 };
 
-window.updateDebugInfo = function(position, orientation, lastKey, fps, renderWidth, renderHeight) {
+window.updateDebugInfo = function(position, orientation, lastKey, fps, renderWidth, renderHeight, velocity) {
   document.getElementById('debug-position').textContent = 
     `Position: (${position[0].toFixed(2)}, ${position[1].toFixed(2)}, ${position[2].toFixed(2)})`;
   document.getElementById('debug-orientation').textContent = 
     `Orientation: Yaw ${orientation[0].toFixed(1)}°, Pitch ${orientation[1].toFixed(1)}°`;
+  document.getElementById('debug-velocity').textContent = 
+    `Velocity: (${velocity[0].toFixed(2)}, ${velocity[1].toFixed(2)}, ${velocity[2].toFixed(2)})`;
   document.getElementById('debug-lastkey').textContent = 
     `Last Key: ${lastKey || 'None'}`;
   document.getElementById('debug-fps').textContent = 

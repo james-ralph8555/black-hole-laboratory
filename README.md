@@ -218,16 +218,8 @@ While the current implementation provides a sophisticated foundation with accura
 - **Adaptive Quality**: Dynamic ray step adjustment based on device performance
 - **Multi-Scale Rendering**: Efficient handling of vastly different length scales
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature-name`)
-3. Make your changes
-4. Add tests for new functionality
-5. Run `cargo test && cargo clippy`
-6. Submit a pull request
-
 ## Acknowledgements
 
 - **Milky Way background**: © 2009 [European Southern Observatory](http://www.eso.org/) (S. Brunier) under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 - **WebGPU Implementation**: Built with [wgpu-rs](https://github.com/gfx-rs/wgpu) graphics library
+- **AWS Amplify Build**: [aws-samples/aws-amplify-webassembly](https://github.com/aws-samples/aws-amplify-webassembly)

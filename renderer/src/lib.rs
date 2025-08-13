@@ -33,7 +33,6 @@ extern "C" {
 use wgpu::util::DeviceExt;
 
 mod camera;
-mod geometry;
 use camera::{Camera, CameraController, CameraUniform};
 
 #[repr(C)]

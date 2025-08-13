@@ -225,3 +225,9 @@ This project is designed to be extensible. The current implementation provides a
     - Enhance GPU acceleration by moving all ray-tracing calculations to shaders.
     - Utilize **precomputation** for performance-critical calculations, such as ray deflection tables, disk intersection lookups, and color transformations for Doppler effects.
     - Optimize calculations using **single-precision floating-point numbers** where possible.
+
+## Acknowledgements
+
+The starfield background image (`milkyway.jpg`) is from the European Southern Observatory, used under the Creative Commons license.
+
+- **Milky Way background image**: © 2009 [European Southern Observatory](http://www.eso.org/) (S. Brunier) under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.en) license. Sourced from [ESA's black hole visualizer](https://www.esa.int/gsp/ACT/phy/Projects/Blackholes/WebGL/).

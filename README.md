@@ -1,15 +1,15 @@
 # Real-Time Black Hole Simulator
 
-A real-time, physically-accurate black hole simulator built with Rust and WebGPU. This application visualizes spinning Kerr black holes using advanced general relativity physics, featuring gravitational lensing, frame-dragging effects, and interactive controls for exploring black hole dynamics.
+A real-time black hole visualization built with Rust and WebGPU. This application simulates the visual effects of spinning Kerr black holes, featuring gravitational lensing, frame-dragging effects, and interactive controls for exploring black hole dynamics.
 
 ![Demo](assets/demo.jpg)
 
 ## Features
 
-- ✅ **Kerr Black Hole Physics** - Accurate simulation of rotating black holes with configurable mass and spin
+- ✅ **Kerr Black Hole Physics** - Simulates rotating black holes with configurable mass and spin
 - ✅ **Real-Time Ray Tracing** - GPU-accelerated light ray simulation through curved spacetime
 - ✅ **Frame-Dragging Effects** - Visualizes the Lense-Thirring effect from spinning black holes
-- ✅ **Gravitational Lensing** - Accurate distortion of background starfield
+- ✅ **Gravitational Lensing** - Visual distortion of background starfield
 - ✅ **Interactive Debug Controls** - Real-time sliders for FOV, mass, spin, and ray steps
 - ✅ **Performance Profiling** - High-precision timing with DWARF debug symbols for flame graphs
 - ✅ **Cross-Platform** - Runs natively and in web browsers via WebAssembly
@@ -75,19 +75,21 @@ npm run build
 ## Physics Implementation
 
 ### Kerr Black Hole Model
-The simulator implements a spinning Kerr black hole with:
-- **Event Horizon**: `r = M + √(M² - a²)` where `a = spin × mass`
-- **Frame-Dragging**: Lense-Thirring effect causing spacetime rotation
-- **Adaptive Ray Marching**: Step size adjusts based on gravitational field strength
+The visualization implements a spinning Kerr black hole model with:
+- **Event Horizons**: Outer and inner horizons calculated from mass and spin
+- **Frame-Dragging**: Lense-Thirring effect causing spacetime rotation around spinning black holes
+- **ISCO Radius**: Innermost Stable Circular Orbit depends on black hole spin
+- **Conserved Quantities**: Energy, angular momentum, and Carter constant guide light rays
 
 ### Ray Tracing Method
-- **Backward Ray Tracing**: Traces light paths from camera to determine pixel colors
-- **Geodesic Integration**: Simulates light following curved spacetime paths
-- **Gravitational Acceleration**: `F = 1.5 × rs / r²` with frame-dragging correction
-- **Escape Condition**: Rays beyond 200× black hole mass distance sample background
+- **Geodesic Integration**: Light rays follow curved spacetime using Kerr metric
+- **RK4 Integration**: 4th-order Runge-Kutta solver for numerical accuracy
+- **Adaptive Step Size**: Smaller steps near the black hole for precision
+- **Kerr-Schild Coordinates**: Avoids singularities at the event horizon
+- **Conserved Quantities**: Uses energy, angular momentum, and Carter constant
 
 ### Rendering Pipeline
-- **Fragment Shader**: GPU-accelerated ray tracing for each pixel
+- **Fragment Shader**: All physics calculations performed on GPU
 - **Camera System**: Dynamic FOV with proper perspective projection
 - **Uniform Buffers**: Real-time parameter updates from UI controls
 - **Background Sampling**: Equirectangular starfield mapping with coordinate grid
@@ -96,14 +98,14 @@ The simulator implements a spinning Kerr black hole with:
 
 ```
 black-hole-laboratory/
-├── simulation/          # Physics calculations
-│   └── src/lib.rs      # Kerr metric, geodesics, integration
+├── simulation/          # Black hole parameter calculations
+│   └── src/lib.rs      # Event horizons, ISCO radius, ergosphere
 ├── renderer/           # Graphics and interaction
 │   ├── src/
 │   │   ├── lib.rs      # Main renderer (WASM entry)
 │   │   ├── main.rs     # Native binary
 │   │   ├── camera.rs   # Camera system and controls
-│   │   └── shader.wgsl # GPU ray tracing shader
+│   │   └── shader.wgsl # GPU ray tracing with Kerr geodesic integration
 │   └── milkyway.jpg    # Background starfield texture
 ├── www/                # Web frontend
 │   ├── index.html      # UI and debug controls
@@ -114,14 +116,16 @@ black-hole-laboratory/
 ```
 
 ### Simulation Crate
-- **KerrBlackHole**: Mass, spin, horizon calculations
-- **ConservedQuantities**: Energy, angular momentum, Carter's constant
-- **AdaptiveRK45**: Numerical integration with error control
-- **KerrLightRay**: Geodesic ray tracing implementation
+- **KerrBlackHole**: Mass, spin, and derived parameter calculations
+  - Event horizon radii (outer and inner)
+  - ISCO (Innermost Stable Circular Orbit) radius
+  - Ergosphere radius at given angles
+- **Parameter Validation**: Ensures physical constraints (|spin| ≤ mass)
 
 ### Renderer Crate
 - **Cross-Platform**: Native development + WebAssembly deployment
 - **WebGPU Backend**: Hardware-accelerated graphics via wgpu
+- **Shader-Based Physics**: All Kerr geodesic calculations performed on GPU
 - **Real-Time Parameters**: Live updates from JavaScript UI sliders
 - **Input Handling**: Unified system for keyboard, mouse, and touch
 
@@ -210,7 +214,7 @@ Enable profiling with the **P** key to monitor performance bottlenecks and optim
 
 ## Future Roadmap
 
-While the current implementation provides a sophisticated foundation with accurate Kerr black hole physics, there are exciting opportunities for visual enhancements and deeper physical modeling:
+While the current implementation provides a solid foundation with Kerr black hole physics, there are exciting opportunities for visual enhancements and more sophisticated physical modeling:
 
 ### Physically-Based Accretion Disk
 - **Shakura-Sunyaev Model**: Replace visual placeholder with physically-motivated accretion disk

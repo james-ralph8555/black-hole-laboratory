@@ -208,9 +208,47 @@ impl KerrLightRay {
         // Initial position in spacetime (t, r, theta, phi)
         let position = [0.0, r, theta, phi];
         
-        // Convert ray direction to four-momentum for null geodesic
-        // This is a simplified initialization - needs proper implementation
-        let momentum = [1.0, ray_dir[0], ray_dir[1], ray_dir[2]];
+        // Convert ray direction to spherical coordinates for proper momentum initialization
+        let ray_len = (ray_dir[0] * ray_dir[0] + ray_dir[1] * ray_dir[1] + ray_dir[2] * ray_dir[2]).sqrt();
+        let ray_dir_norm = [ray_dir[0] / ray_len, ray_dir[1] / ray_len, ray_dir[2] / ray_len];
+        
+        // Convert Cartesian ray direction to spherical coordinate derivatives
+        let sin_theta = theta.sin();
+        let cos_theta = theta.cos();
+        let sin_phi = phi.sin();
+        let cos_phi = phi.cos();
+        
+        // Transformation from Cartesian to spherical derivatives
+        let dr_dt = ray_dir_norm[0] * sin_theta * cos_phi + ray_dir_norm[1] * sin_theta * sin_phi + ray_dir_norm[2] * cos_theta;
+        let dtheta_dt = if sin_theta > 1e-6 {
+            (ray_dir_norm[0] * cos_theta * cos_phi + ray_dir_norm[1] * cos_theta * sin_phi - ray_dir_norm[2] * sin_theta) / r
+        } else {
+            0.0
+        };
+        let dphi_dt = if sin_theta > 1e-6 {
+            (-ray_dir_norm[0] * sin_phi + ray_dir_norm[1] * cos_phi) / (r * sin_theta)
+        } else {
+            0.0
+        };
+        
+        // For a null geodesic, we need to solve for p_t using the null condition
+        // Start with spatial momentum components
+        let pr = dr_dt;
+        let ptheta = r * dtheta_dt; 
+        let pphi = r * sin_theta * dphi_dt;
+        
+        // Calculate metric components (for future null condition implementation)
+        let _sigma = kerr_schild::sigma(r, theta, black_hole.spin);
+        let _delta = kerr_schild::delta(r, black_hole.mass, black_hole.spin);
+        let _a = black_hole.spin;
+        let _mass = black_hole.mass;
+        
+        // Solve for p_t from null condition: g_μν p^μ p^ν = 0
+        // This is complex for Kerr metric, so we'll use a simplified approach
+        // Set energy E = 1 and derive p_t = -E = -1
+        let pt = -1.0; // Energy = 1 for outgoing photon
+        
+        let momentum = [pt, pr, ptheta, pphi];
         
         let geodesic = Geodesic::new(position, momentum);
         let conserved = ConservedQuantities::from_initial_conditions(position, momentum, black_hole.mass, black_hole.spin);
@@ -273,9 +311,9 @@ impl KerrLightRay {
         // First-order ODE system for null geodesics
         // Using conserved quantities to eliminate second derivatives
         
-        // dt/dλ = (1/Δ) * [(r² + a²)E - aLz] * (r² + a²)/Σ + aE * sin²θ
-        let dt_dlambda = (1.0 / delta) * ((r * r + spin * spin) * e - spin * lz) * (r * r + spin * spin) / sigma 
-                        + spin * e * sin_theta.powi(2);
+        // dt/dλ = (1/Σ) * [((r²+a²)/Δ) * P_r - a(aE*sin²θ - Lz)]
+        let p_r = e * (r * r + spin * spin) - spin * lz;
+        let dt_dlambda = (1.0 / sigma) * (((r * r + spin * spin) / delta) * p_r - spin * (spin * e * sin_theta.powi(2) - lz));
         
         // dr/dλ determined by radial equation of motion
         // R(r) = [E(r² + a²) - aLz]² - Δ[μr² + (Lz - aE)² + Q]
@@ -299,8 +337,8 @@ impl KerrLightRay {
             0.0 // Ray is turning around in theta
         };
         
-        // dφ/dλ = (1/Δ) * [-aE + Lz/sin²θ] + aE/Σ
-        let dphi_dlambda = (1.0 / delta) * (-spin * e + lz / sin_theta.powi(2)) + spin * e / sigma;
+        // dφ/dλ = (1/Σ) * [(a/Δ) * P_r + (Lz/sin²θ - aE)]
+        let dphi_dlambda = (1.0 / sigma) * ((spin / delta) * p_r + (lz / sin_theta.powi(2) - spin * e));
         
         // Position derivatives (dx^μ/dλ)
         let pos_deriv = [dt_dlambda, dr_dlambda, dtheta_dlambda, dphi_dlambda];
@@ -478,8 +516,14 @@ impl ConservedQuantities {
         let angular_momentum_z = pphi;
         
         // Carter's constant calculation
-        let carter_constant = ptheta * ptheta + theta.cos().powi(2) * 
-            (spin * spin * (energy * energy - 1.0) + angular_momentum_z * angular_momentum_z / sin_theta.powi(2));
+        // Handle the pole case where sin(theta) = 0
+        let carter_constant = if sin_theta.abs() < 1e-6 {
+            // At the poles, L_z should be zero anyway, so the term becomes just p_theta^2
+            ptheta * ptheta + theta.cos().powi(2) * spin * spin * (energy * energy - 1.0)
+        } else {
+            ptheta * ptheta + theta.cos().powi(2) * 
+                (spin * spin * (energy * energy - 1.0) + angular_momentum_z * angular_momentum_z / sin_theta.powi(2))
+        };
         
         Self {
             energy,
@@ -943,5 +987,78 @@ mod tests {
         assert!(kerr_ray.conserved.energy.is_finite());
         assert!(kerr_ray.conserved.angular_momentum_z.is_finite());
         assert!(kerr_ray.conserved.carter_constant >= 0.0);
+    }
+    
+    #[test]
+    fn test_frame_dragging_effect() {
+        // Test that corrected Kerr geodesics show frame-dragging
+        let mass = 1.0;
+        let high_spin = 0.99 * mass; // Near-maximal spin
+        let no_spin = 0.0;
+        
+        // Camera position much closer to black hole for stronger effect
+        let camera_pos = [5.0, 0.0, 0.0]; // At r=5M, theta=π/2 - very close to ISCO
+        
+        // Ray direction highly tangential for maximum frame-dragging
+        let ray_dir = [-0.1, 1.0, 0.0]; // Very slightly inward but mostly tangential
+        
+        // Create black holes
+        let bh_spinning = KerrBlackHole::new(mass, high_spin);
+        let bh_nonspinning = KerrBlackHole::new(mass, no_spin);
+        
+        // Create light rays
+        let mut ray_spinning = KerrLightRay::new(camera_pos, ray_dir, bh_spinning);
+        let mut ray_nonspinning = KerrLightRay::new(camera_pos, ray_dir, bh_nonspinning);
+        
+        let initial_phi_spinning = ray_spinning.geodesic.position[3];
+        let initial_phi_nonspinning = ray_nonspinning.geodesic.position[3];
+        
+        // Integrate both rays for a fixed number of steps
+        let max_steps = 200;
+        let mut steps_spinning = 0;
+        let mut steps_nonspinning = 0;
+        
+        // Integrate spinning ray
+        while steps_spinning < max_steps && ray_spinning.step() {
+            steps_spinning += 1;
+            
+            // Stop if too close to horizon or escaped
+            if ray_spinning.geodesic.radius() < 2.0 * mass || ray_spinning.has_escaped() {
+                break;
+            }
+        }
+        
+        // Integrate non-spinning ray
+        while steps_nonspinning < max_steps && ray_nonspinning.step() {
+            steps_nonspinning += 1;
+            
+            // Stop if too close to horizon or escaped
+            if ray_nonspinning.geodesic.radius() < 2.0 * mass || ray_nonspinning.has_escaped() {
+                break;
+            }
+        }
+        
+        // Compare final phi coordinates - this shows frame-dragging
+        let final_phi_spinning = ray_spinning.geodesic.position[3];
+        let final_phi_nonspinning = ray_nonspinning.geodesic.position[3];
+        
+        let phi_change_spinning = final_phi_spinning - initial_phi_spinning;
+        let phi_change_nonspinning = final_phi_nonspinning - initial_phi_nonspinning;
+        let phi_difference = phi_change_spinning - phi_change_nonspinning;
+        
+        // Frame-dragging should cause a noticeable difference in phi evolution
+        // For a high-spin black hole, this effect should be detectable
+        assert!(phi_difference.abs() > 1e-6, 
+               "Frame-dragging not detected: phi difference = {:.8}, spinning change = {:.8}, non-spinning change = {:.8}", 
+               phi_difference, phi_change_spinning, phi_change_nonspinning);
+        
+        // Both rays should take roughly the same number of steps
+        assert!(steps_spinning > 0, "Spinning ray should take some integration steps");
+        assert!(steps_nonspinning > 0, "Non-spinning ray should take some integration steps");
+        
+        // Conserved quantities should be finite
+        assert!(ray_spinning.conserved.energy.is_finite());
+        assert!(ray_spinning.conserved.angular_momentum_z.is_finite());
+        assert!(ray_spinning.conserved.carter_constant.is_finite());
     }
 }

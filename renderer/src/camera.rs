@@ -88,7 +88,7 @@ impl CameraUniform {
             camera_pos: [0.0; 3],
             background_mode: 0.0,
             camera_forward: [0.0, 0.0, -1.0],
-            fovy: 45.0,
+            fovy: 80.0,
             camera_right: [1.0, 0.0, 0.0],
             _padding3: 0.0,
             camera_up: [0.0, 1.0, 0.0],

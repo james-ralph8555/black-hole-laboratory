@@ -214,6 +214,3 @@ This project is designed to be extensible. The current implementation provides a
     - Enhance GPU acceleration by moving all ray-tracing calculations to shaders.
     - Utilize **precomputation** for performance-critical calculations, such as ray deflection tables, disk intersection lookups, and color transformations for Doppler effects.
     - Optimize calculations using **single-precision floating-point numbers** where possible.
-
-- [ ] **Multiple Black Holes**:
-    - A highly ambitious goal would be to simulate the spacetime of a binary black hole system. This would likely require moving beyond analytical metrics and into the realm of numerical relativity to approximate the combined spacetime curvature.

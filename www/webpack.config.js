@@ -25,7 +25,9 @@ module.exports = (env, argv) => {
   plugins: [
     new CopyPlugin({
         patterns: [
-            path.resolve(__dirname, "index.html")
+            path.resolve(__dirname, "index.html"),
+            path.resolve(__dirname, "favicon.ico"),
+            path.resolve(__dirname, "icon.png")
         ]
     }),
 

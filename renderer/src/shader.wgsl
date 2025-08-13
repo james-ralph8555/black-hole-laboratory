@@ -122,12 +122,12 @@ fn sample_environment(dir: vec3<f32>) -> vec3<f32> {
             color = textureSample(t_sky, s_sky, uv).rgb;
         } else {
             // Mode 1: Procedural stars
-            let star_density = 8000.0; // Further increased resolution
+            let star_density = 15000.0; // High resolution starfield
             let star_coords = floor(uv * star_density);
             let star_hash_base = dot(star_coords, vec2<f32>(12.9898, 78.233));
             let star_hash = fract(sin(star_hash_base) * 43758.5453);
             
-            if (star_hash > 0.999) { // Adjusted threshold for higher density
+            if (star_hash > 0.9995) { // Adjusted for higher density
                 // Glittery, colorful stars
                 let star_color_hash = fract(sin(star_hash_base * 0.5) * 43758.5453);
                 let star_color = vec3<f32>(
@@ -137,12 +137,12 @@ fn sample_environment(dir: vec3<f32>) -> vec3<f32> {
                 );
                 let brightness = 0.8 + 0.2 * fract(star_hash * 100.0);
                 color = star_color * brightness;
-            } else if (star_hash > 0.995) { // Adjusted threshold for higher density
+            } else if (star_hash > 0.998) { // Adjusted for higher density
                 // Dimmer, background stars
                 color = vec3<f32>(0.4, 0.4, 0.6);
             } else {
-                // Dark sky background
-                color = vec3<f32>(0.0, 0.0, 0.0);
+                // Dark sky background with a slight hue
+                color = vec3<f32>(0.02, 0.02, 0.05);
             }
         }
     } else {

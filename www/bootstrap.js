@@ -182,13 +182,86 @@ window.updateDebugInfo = function(position, orientation, lastKey, fps, renderWid
     `Resolution: ${renderWidth.toFixed(0)}x${renderHeight.toFixed(0)}`;
 };
 
+window.updateFpsCounter = function(fps, visible) {
+  const fpsCounter = document.getElementById('fps-counter');
+  if (fpsCounter) {
+    fpsCounter.textContent = `FPS: ${fps.toFixed(1)}`;
+    fpsCounter.style.display = visible ? 'block' : 'none';
+  }
+};
+
+// Debug control sliders - global reference to WASM module
+let wasmModule = null;
+
+function setupDebugControls() {
+  // Helper function to blur slider after interaction to restore keyboard focus
+  function setupSlider(sliderId, valueId, updateCallback, formatter) {
+    const slider = document.getElementById(sliderId);
+    const valueDisplay = document.getElementById(valueId);
+    if (slider && valueDisplay) {
+      slider.addEventListener('input', (e) => {
+        const value = parseFloat(e.target.value);
+        valueDisplay.textContent = formatter(value);
+        if (wasmModule && updateCallback) {
+          updateCallback(value);
+        }
+      });
+      
+      // Blur the slider when user stops interacting to restore keyboard focus to canvas
+      slider.addEventListener('change', () => {
+        slider.blur();
+      });
+      
+      // Also blur on mouse leave to ensure keyboard focus returns
+      slider.addEventListener('mouseleave', () => {
+        slider.blur();
+      });
+    }
+  }
+
+  // FOV slider
+  setupSlider('fov-slider', 'fov-value', 
+    (value) => wasmModule?.set_debug_fov?.(value), 
+    (value) => `${value}°`);
+
+  // Mass slider
+  setupSlider('mass-slider', 'mass-value', 
+    (value) => wasmModule?.set_debug_mass?.(value), 
+    (value) => value.toFixed(1));
+
+  // Spin slider
+  setupSlider('spin-slider', 'spin-value', 
+    (value) => wasmModule?.set_debug_spin?.(value), 
+    (value) => value.toFixed(1));
+
+  // Ray steps slider
+  setupSlider('ray-steps-slider', 'ray-steps-value', 
+    (value) => wasmModule?.set_debug_ray_steps?.(value), 
+    (value) => value.toFixed(0));
+}
+
 async function main() {
   // Set up canvas sizing before initializing WASM
   setupCanvas();
   setupHelpOverlay();
   
   // Wait for the wasm module to be compiled and initialized
-  await init();
+  wasmModule = await init();
+
+  // Set up debug controls now that WASM is loaded
+  setupDebugControls();
+
+  // Ensure canvas can receive keyboard events
+  const canvas = document.getElementById('wasm-canvas');
+  if (canvas) {
+    canvas.tabIndex = 0; // Make canvas focusable
+    canvas.focus(); // Give canvas initial focus
+    
+    // Restore focus to canvas when clicked
+    canvas.addEventListener('click', () => {
+      canvas.focus();
+    });
+  }
 
   // Now that initialization is complete, it's safe to call our function
   run();

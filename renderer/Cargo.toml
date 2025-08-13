@@ -32,5 +32,6 @@ web-sys = { version = "0.3", features = [
     "Element",
     "HtmlCanvasElement",
     "Node",
+    "Performance",
 ]}
 wgpu = { version = "0.20", features = ["wgsl", "webgl"] }

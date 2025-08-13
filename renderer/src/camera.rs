@@ -62,9 +62,9 @@ impl Camera {
 pub struct CameraUniform {
     pub view_proj: [[f32; 4]; 4],
     pub camera_pos: [f32; 3],
-    pub _padding1: f32,
+    pub background_mode: f32,
     pub camera_forward: [f32; 3],
-    pub _padding2: f32,
+    pub fovy: f32,
     pub camera_right: [f32; 3],
     pub _padding3: f32,
     pub camera_up: [f32; 3],
@@ -86,9 +86,9 @@ impl CameraUniform {
         Self {
             view_proj: cgmath::Matrix4::identity().into(),
             camera_pos: [0.0; 3],
-            _padding1: 0.0,
+            background_mode: 0.0,
             camera_forward: [0.0, 0.0, -1.0],
-            _padding2: 0.0,
+            fovy: 45.0,
             camera_right: [1.0, 0.0, 0.0],
             _padding3: 0.0,
             camera_up: [0.0, 1.0, 0.0],
@@ -119,6 +119,7 @@ impl CameraUniform {
         self.camera_forward = forward.into();
         self.camera_right = right.into();
         self.camera_up = up.into();
+        self.fovy = camera.fovy;
         
         // Update toggle states
         self.show_stars = if show_stars { 1.0 } else { 0.0 };
@@ -157,6 +158,7 @@ pub struct CameraController {
     pub show_stars: bool,
     pub show_grid: bool,
     pub show_help: bool,
+    pub show_fps: bool,
     pub last_key: Option<KeyCode>,
     pub frame_count: u32,
     pub fps: f32,
@@ -190,6 +192,7 @@ impl CameraController {
             show_stars: true,
             show_grid: false,
             show_help: false,  // Start with help hidden (flash message shows instead)
+            show_fps: false,   // Start with FPS counter hidden
             last_key: None,
             frame_count: 0,
             fps: 0.0,
@@ -338,6 +341,13 @@ impl CameraController {
                 // Toggle help with ? key
                 if state == ElementState::Pressed {
                     self.show_help = !self.show_help;
+                }
+                true
+            }
+            KeyCode::KeyF => {
+                // Toggle FPS counter
+                if state == ElementState::Pressed {
+                    self.show_fps = !self.show_fps;
                 }
                 true
             }

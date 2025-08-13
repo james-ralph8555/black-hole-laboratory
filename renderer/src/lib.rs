@@ -25,6 +25,9 @@ extern "C" {
     
     #[wasm_bindgen(js_name = updateDebugInfo)]
     fn js_update_debug_info(position: &[f32], orientation: &[f32], last_key: &str, fps: f32, render_width: f32, render_height: f32, velocity: &[f32]);
+    
+    #[wasm_bindgen(js_name = updateFpsCounter)]
+    fn js_update_fps_counter(fps: f32, visible: bool);
 }
 
 use wgpu::util::DeviceExt;
@@ -42,8 +45,10 @@ struct BlackHoleUniform {
     mass: f32,
     /// Spin parameter (dimensionless)
     spin: f32,
-    /// Padding for alignment
-    _padding: [f32; 3],
+    /// Ray marching steps
+    ray_steps: f32,
+    /// Padding for WGSL alignment
+    _padding: [f32; 6],
 }
 
 #[repr(C)]
@@ -101,8 +106,15 @@ struct State<'a> {
     sky_texture: texture::Texture,
     sky_bind_group: wgpu::BindGroup,
     background_mode: u32,
+    // Debug parameters
+    debug_fov: f32,
+    debug_mass: f32,
+    debug_spin: f32,
+    debug_ray_steps: f32,
     #[cfg(not(target_arch = "wasm32"))]
     last_render_time: std::time::Instant,
+    #[cfg(target_arch = "wasm32")]
+    last_render_time: f64, // Use f64 for JS performance.now() timestamp
 }
 
 impl<'a> State<'a> {
@@ -215,7 +227,7 @@ impl<'a> State<'a> {
         // Create camera with aspect ratio matching the actual window size
         // Start the camera at a good position to view the black hole
         let camera = Camera::new(
-            (0.0, 0.0, -15.0),  // Start behind black hole so W moves toward it
+            (0.0, 0.0, -75.0),  // Start far back for better testing perspective
             (0.0, 0.0, 0.0),   // Look towards the black hole at origin
             cgmath::Vector3::unit_y(),
             width as f32 / height as f32,  // Dynamic aspect ratio
@@ -260,15 +272,22 @@ impl<'a> State<'a> {
             label: Some("camera_bind_group"),
         });
 
-        // Create default black hole for the simulation
-        let black_hole = simulation::KerrBlackHole::new(1.0, 0.7); // Mass = 1, moderate spin
+        // Create default black hole for the simulation - SCHWARZSCHILD FOR TESTING
+        let black_hole = simulation::KerrBlackHole::schwarzschild(1.0); // Pure Schwarzschild, no spin
+
+        // Initialize debug parameters
+        let debug_fov = 45.0;
+        let debug_mass = black_hole.mass;
+        let debug_spin = black_hole.spin;
+        let debug_ray_steps = 400.0;
 
         // Create black hole uniform
         let black_hole_uniform = BlackHoleUniform {
             position: [0.0, 0.0, 0.0], // Centered at origin
-            mass: black_hole.mass,
-            spin: black_hole.spin,
-            _padding: [0.0; 3],
+            mass: debug_mass,
+            spin: debug_spin,
+            ray_steps: debug_ray_steps,
+            _padding: [0.0; 6],
         };
 
         let black_hole_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -430,11 +449,21 @@ impl<'a> State<'a> {
             sky_texture,
             sky_bind_group,
             background_mode: 0, // 0: texture, 1: procedural, 2: none
+            // Initialize debug parameters
+            debug_fov,
+            debug_mass,
+            debug_spin,
+            debug_ray_steps,
             #[cfg(not(target_arch = "wasm32"))]
             last_render_time: std::time::Instant::now(),
+            #[cfg(target_arch = "wasm32")]
+            last_render_time: web_sys::window().unwrap().performance().unwrap().now(),
         }
     }
 
+    fn update_camera_fov(&mut self) {
+        self.camera.fovy = self.debug_fov;
+    }
 
     fn input(&mut self, event: &WindowEvent) -> bool {
         match event {
@@ -448,9 +477,12 @@ impl<'a> State<'a> {
                 ..
             } => {
                 if *state == winit::event::ElementState::Pressed {
-                    if let PhysicalKey::Code(winit::keyboard::KeyCode::KeyB) = *physical_key {
-                        self.background_mode = (self.background_mode + 1) % 3;
-                        return true;
+                    match physical_key {
+                        PhysicalKey::Code(winit::keyboard::KeyCode::KeyB) => {
+                            self.background_mode = (self.background_mode + 1) % 3;
+                            return true;
+                        }
+                        _ => {}
                     }
                 }
                 
@@ -505,8 +537,11 @@ impl<'a> State<'a> {
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         cfg_if! {
             if #[cfg(target_arch = "wasm32")] {
-                // For WASM, use a fixed delta time (assuming 60fps)
-                let dt = std::time::Duration::from_millis(16);
+                // For WASM, use actual time measurements from performance.now()
+                let now = web_sys::window().unwrap().performance().unwrap().now();
+                let dt_ms = now - self.last_render_time;
+                let dt = std::time::Duration::from_secs_f64(dt_ms / 1000.0);
+                self.last_render_time = now;
                 self.camera_controller.update_camera(&mut self.camera, dt);
             } else {
                 let now = std::time::Instant::now();
@@ -526,8 +561,34 @@ impl<'a> State<'a> {
             self.config.width as f32,
             self.config.height as f32
         );
-        self.camera_uniform._padding1 = if self.background_mode == 1 { 1.0 } else { 0.0 };
+        self.camera_uniform.background_mode = if self.background_mode == 1 { 1.0 } else { 0.0 };
         self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
+
+        // Update debug parameters from global state (WASM) or local state (native)
+        #[cfg(target_arch = "wasm32")]
+        {
+            unsafe {
+                if let Some(params) = &DEBUG_PARAMS {
+                    if let Ok(params) = params.lock() {
+                        self.debug_fov = params.fov;
+                        self.debug_mass = params.mass;
+                        self.debug_spin = params.spin;
+                        self.debug_ray_steps = params.ray_steps;
+                        
+                        // Update camera FOV if it changed
+                        if (self.camera.fovy - self.debug_fov).abs() > 0.001 {
+                            self.update_camera_fov();
+                        }
+                    }
+                }
+            }
+        }
+
+        // Update black hole uniform with debug parameters
+        self.black_hole_uniform.mass = self.debug_mass;
+        self.black_hole_uniform.spin = self.debug_spin;
+        self.black_hole_uniform.ray_steps = self.debug_ray_steps;
+        self.queue.write_buffer(&self.black_hole_buffer, 0, bytemuck::cast_slice(&[self.black_hole_uniform]));
 
         // Update HTML help overlay for WASM
         #[cfg(target_arch = "wasm32")]
@@ -549,6 +610,9 @@ impl<'a> State<'a> {
                 
                 js_update_debug_info(&position, &orientation, &last_key, self.camera_controller.fps, self.config.width as f32, self.config.height as f32, &velocity);
             }
+            
+            // Update FPS counter
+            js_update_fps_counter(self.camera_controller.fps, self.camera_controller.show_fps);
         }
 
         let output = self.surface.get_current_texture()?;
@@ -714,12 +778,83 @@ impl ApplicationHandler for App {
     }
 }
 
+// Global state for WASM slider controls
+#[cfg(target_arch = "wasm32")]
+static mut DEBUG_PARAMS: Option<std::sync::Arc<std::sync::Mutex<DebugParams>>> = None;
+
+#[cfg(target_arch = "wasm32")]
+struct DebugParams {
+    fov: f32,
+    mass: f32,
+    spin: f32,
+    ray_steps: f32,
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn set_debug_fov(value: f32) {
+    unsafe {
+        if let Some(params) = &DEBUG_PARAMS {
+            if let Ok(mut params) = params.lock() {
+                params.fov = value.clamp(10.0, 120.0);
+            }
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn set_debug_mass(value: f32) {
+    unsafe {
+        if let Some(params) = &DEBUG_PARAMS {
+            if let Ok(mut params) = params.lock() {
+                params.mass = value.clamp(0.1, 5.0);
+            }
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn set_debug_spin(value: f32) {
+    unsafe {
+        if let Some(params) = &DEBUG_PARAMS {
+            if let Ok(mut params) = params.lock() {
+                params.spin = value.clamp(-1.0, 1.0);
+            }
+        }
+    }
+}
+
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn set_debug_ray_steps(value: f32) {
+    unsafe {
+        if let Some(params) = &DEBUG_PARAMS {
+            if let Ok(mut params) = params.lock() {
+                params.ray_steps = value.clamp(50.0, 1000.0);
+            }
+        }
+    }
+}
+
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 pub fn run() {
     cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             std::panic::set_hook(Box::new(console_error_panic_hook::hook));
             console_log::init_with_level(log::Level::Warn).expect("Couldn't initialize logger");
+            
+            // Initialize global debug parameters for WASM
+            unsafe {
+                DEBUG_PARAMS = Some(std::sync::Arc::new(std::sync::Mutex::new(DebugParams {
+                    fov: 45.0,
+                    mass: 1.0,
+                    spin: 0.0,
+                    ray_steps: 400.0,
+                })));
+            }
         } else {
             env_logger::init();
         }

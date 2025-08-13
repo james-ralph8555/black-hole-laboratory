@@ -80,6 +80,77 @@
                 border: 1px solid #666666;
             }
             
+            #help-overlay .debug-controls {
+                background: rgba(30, 30, 30, 0.8);
+                padding: 12px;
+                border-radius: 5px;
+                margin: 15px 0;
+                border: 1px solid #666666;
+            }
+            
+            .slider-control {
+                margin: 8px 0;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            
+            .slider-control label {
+                min-width: 120px;
+                font-size: 12px;
+                color: #cccccc;
+            }
+            
+            .slider-control input[type="range"] {
+                flex: 1;
+                height: 6px;
+                background: #444444;
+                outline: none;
+                border-radius: 3px;
+                -webkit-appearance: none;
+            }
+            
+            .slider-control input[type="range"]::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                appearance: none;
+                width: 16px;
+                height: 16px;
+                background: #888888;
+                cursor: pointer;
+                border-radius: 50%;
+            }
+            
+            .slider-control input[type="range"]::-moz-range-thumb {
+                width: 16px;
+                height: 16px;
+                background: #888888;
+                cursor: pointer;
+                border-radius: 50%;
+                border: none;
+            }
+            
+            .slider-control .value-display {
+                min-width: 50px;
+                font-size: 12px;
+                color: #ffffff;
+                text-align: right;
+            }
+            
+            #fps-counter {
+                position: fixed;
+                top: 10px;
+                right: 10px;
+                font-family: 'Space Mono', 'Courier New', monospace;
+                font-size: 12px;
+                color: #888888;
+                background: rgba(0, 0, 0, 0.3);
+                padding: 4px 8px;
+                border-radius: 3px;
+                z-index: 500;
+                display: none;
+                pointer-events: none;
+            }
+            
             #help-flash {
                 position: fixed;
                 top: 50%;
@@ -142,6 +213,8 @@
         <noscript>This page contains webassembly and javascript content, please enable javascript in your browser.</noscript>
         <canvas id="wasm-canvas"></canvas>
         
+        <div id="fps-counter">FPS: 0.0</div>
+        
         <div id="help-flash">Press ? for help</div>
         
         <div id="touch-controls-overlay">
@@ -170,7 +243,31 @@
                 <div class="section-title">VISUAL TOGGLES:</div>
                 <div>B - Toggle background (stars/gradient)</div>
                 <div>G - Toggle lat/long grid lines</div>
+                <div>F - Toggle FPS counter</div>
                 <div>? - Toggle this help</div>
+            </div>
+            <div class="debug-controls">
+                <div class="section-title">DEBUG CONTROLS:</div>
+                <div class="slider-control">
+                    <label for="fov-slider">FOV:</label>
+                    <input type="range" id="fov-slider" min="10" max="120" step="1" value="45" />
+                    <span id="fov-value" class="value-display">45°</span>
+                </div>
+                <div class="slider-control">
+                    <label for="mass-slider">Black Hole Mass:</label>
+                    <input type="range" id="mass-slider" min="0.1" max="5.0" step="0.1" value="1.0" />
+                    <span id="mass-value" class="value-display">1.0</span>
+                </div>
+                <div class="slider-control">
+                    <label for="spin-slider">Black Hole Spin:</label>
+                    <input type="range" id="spin-slider" min="-1.0" max="1.0" step="0.1" value="0.0" />
+                    <span id="spin-value" class="value-display">0.0</span>
+                </div>
+                <div class="slider-control">
+                    <label for="ray-steps-slider">Ray Steps:</label>
+                    <input type="range" id="ray-steps-slider" min="50" max="1000" step="50" value="400" />
+                    <span id="ray-steps-value" class="value-display">400</span>
+                </div>
             </div>
             <div class="debug-info">
                 <div class="section-title">DEBUG INFO:</div>

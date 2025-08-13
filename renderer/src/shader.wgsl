@@ -5,7 +5,7 @@ struct CameraUniform {
     camera_pos: vec3<f32>,
     background_mode: f32,
     camera_forward: vec3<f32>,
-    _padding2: f32,
+    fovy: f32,
     camera_right: vec3<f32>,
     _padding3: f32,
     camera_up: vec3<f32>,
@@ -24,6 +24,9 @@ var<uniform> camera: CameraUniform;
 struct BlackHoleUniform {
     position: vec3<f32>,
     mass: f32,
+    spin: f32,
+    ray_steps: f32,
+    _padding: vec2<f32>,
 };
 @group(1) @binding(0)
 var<uniform> black_hole: BlackHoleUniform;
@@ -67,41 +70,66 @@ fn schwarzschild_radius(mass: f32) -> f32 {
     return 2.0 * mass;
 }
 
-// Simplified geodesic step for ray tracing
+// Relativistic geodesic ray tracing using Kerr metric approximation
 fn trace_ray(start_pos: vec3<f32>, ray_dir: vec3<f32>, mass: f32, max_steps: i32) -> vec3<f32> {
     var pos = start_pos;
     var dir = normalize(ray_dir);
-    let step_size = 0.1;
     let bh_pos = black_hole.position;
-    
+    let rs = schwarzschild_radius(mass);
+    let spin = black_hole.spin;
+
     for (var i = 0; i < max_steps; i++) {
-        let to_bh = pos - bh_pos;
-        let r = length(to_bh);
+        let to_bh = bh_pos - pos;
+        let r_sq = dot(to_bh, to_bh);
+        let r = sqrt(r_sq);
+
+        // Adaptive Step Size (More accurate near the black hole)
+        // This makes bigger jumps when far away and smaller, precise steps when close.
+        let step_size = clamp(r * 0.1, 0.005, 0.2);
+
+        // Calculate effective event horizon radius for Kerr black hole
+        // For a Kerr black hole: r_horizon = M + sqrt(M^2 - a^2) where a = spin * M
+        let a = spin * mass; // Spin parameter
+        let effective_horizon = mass + sqrt(max(mass * mass - a * a, 0.0));
         
         // Check if we hit the event horizon
-        if (r <= schwarzschild_radius(mass)) {
-            return vec3<f32>(0.0, 0.0, 0.0); // Black (absorbed)
+        if (r <= effective_horizon) {
+            return vec3<f32>(0.0, 0.0, 0.0); // Absorbed by the black hole
         }
+
+        // REMOVED: Premature escape check that was causing "blip" at 50 units
+        // The ray tracing should continue regardless of camera distance
+
+        // Basic Kerr gravitational acceleration with frame-dragging effect
+        let base_accel = to_bh * 1.5 * rs / (r_sq * r);
         
-        // Check if we escaped far enough
-        if (r > 50.0 * mass) {
-            // Sample environment based on final direction
-            let env_color = sample_environment(dir);
-            return env_color;
-        }
+        // Add frame-dragging effect for spinning black holes
+        // This is a simplified approximation of the Lense-Thirring effect
+        let up_vector = vec3<f32>(0.0, 1.0, 0.0); // Spin axis
+        let tangential = cross(up_vector, to_bh);
+        let tangential_normalized = normalize(tangential);
         
-        // Simplified gravitational deflection
-        let gravity_strength = mass / (r * r);
-        let gravity_dir = -normalize(to_bh);
+        // Frame-dragging strength increases with spin and decreases with distance
+        let frame_drag_strength = (spin * spin) * rs * rs / (r_sq * r_sq);
+        let frame_drag_accel = tangential_normalized * frame_drag_strength * 0.5;
         
-        // Apply gravitational acceleration (simplified)
-        dir = normalize(dir + gravity_dir * gravity_strength * step_size);
+        let total_accel = base_accel + frame_drag_accel;
         
-        // Move along ray
+        // Apply the change in direction
+        dir = normalize(dir + total_accel * step_size);
+
+        // Move the ray
         pos += dir * step_size;
+        
+        // Check if ray has traveled far enough to be considered "escaped"
+        // Only check this AFTER the ray has moved, not at the starting position
+        let new_r = length(bh_pos - pos);
+        if (new_r > 200.0 * mass) {
+            return sample_environment(dir);
+        }
     }
-    
-    // If we ran out of steps, assume it escaped
+
+    // If we ran out of steps, assume the ray escaped
     return sample_environment(dir);
 }
 
@@ -184,7 +212,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     
     // Generate ray direction using camera basis vectors
     // This creates proper perspective projection for ray tracing
-    let fov_scale = tan(45.0 * 0.5 * 3.14159 / 180.0); // 45 degree FOV
+    let fov_scale = tan(camera.fovy * 0.5 * 3.14159 / 180.0); // Use dynamic FOV from camera
     
     let ray_dir_camera_space = vec3<f32>(
         screen_pos.x * camera.aspect_ratio * fov_scale,
@@ -200,7 +228,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     );
     
     // Trace the ray through spacetime from camera position
-    var color = trace_ray(camera.camera_pos, ray_dir, black_hole.mass, 200);
+    // Use configurable ray marching steps
+    var color = trace_ray(camera.camera_pos, ray_dir, black_hole.mass, i32(black_hole.ray_steps));
     
     return vec4<f32>(color, 1.0);
 }

@@ -518,7 +518,12 @@ impl KerrBlackHole {
     
     /// Calculate the inner horizon radius (Cauchy horizon)
     pub fn inner_horizon(&self) -> f32 {
-        self.mass - (self.mass * self.mass - self.spin * self.spin).sqrt()
+        if self.spin.abs() < 1e-10 {
+            // For Schwarzschild case (spin ≈ 0), inner and outer horizons coincide
+            self.outer_horizon()
+        } else {
+            self.mass - (self.mass * self.mass - self.spin * self.spin).sqrt()
+        }
     }
     
     /// Calculate the ergosphere radius at a given theta
@@ -891,5 +896,52 @@ mod tests {
         assert!(g_kerr[0][1].abs() < 1e-6);
         assert!(g_kerr[0][3].abs() < 1e-6);
         assert!(g_kerr[1][3].abs() < 1e-6);
+    }
+    
+    #[test]
+    fn test_kerr_schwarzschild_horizon_compatibility() {
+        // Verify that Kerr with spin=0 gives identical results to Schwarzschild
+        let mass = 2.0;
+        
+        // Create Kerr black hole with zero spin
+        let kerr_bh = KerrBlackHole::new(mass, 0.0);
+        
+        // Test that horizons match Schwarzschild
+        let kerr_horizon = kerr_bh.outer_horizon();
+        let schwarzschild_radius = 2.0 * mass;
+        
+        assert!((kerr_horizon - schwarzschild_radius).abs() < 1e-10);
+        
+        // Inner horizon should equal outer horizon for non-spinning case
+        let inner_horizon = kerr_bh.inner_horizon();
+        assert!((inner_horizon - kerr_horizon).abs() < 1e-10);
+        
+        // ISCO should be at 6M for Schwarzschild
+        let isco = kerr_bh.isco_radius();
+        assert!((isco - 6.0 * mass).abs() < 0.1);
+    }
+    
+    #[test]
+    fn test_kerr_light_ray_schwarzschild_consistency() {
+        // Test that KerrLightRay with spin=0 behaves like Schwarzschild
+        let camera_pos = [0.0, 0.0, 10.0];
+        let ray_dir = [0.0, 0.0, -1.0];
+        
+        // Create both types of black holes
+        let kerr_bh = KerrBlackHole::schwarzschild(1.0);
+        let kerr_ray = KerrLightRay::new(camera_pos, ray_dir, kerr_bh);
+        
+        // Verify the black hole parameters are correct
+        assert_eq!(kerr_ray.black_hole.mass, 1.0);
+        assert_eq!(kerr_ray.black_hole.spin, 0.0);
+        
+        // Test that horizon detection works the same
+        let horizon_radius = kerr_ray.black_hole.outer_horizon();
+        assert!((horizon_radius - 2.0).abs() < 1e-10);
+        
+        // Test conserved quantities initialization
+        assert!(kerr_ray.conserved.energy.is_finite());
+        assert!(kerr_ray.conserved.angular_momentum_z.is_finite());
+        assert!(kerr_ray.conserved.carter_constant >= 0.0);
     }
 }

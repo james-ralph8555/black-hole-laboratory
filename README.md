@@ -1,233 +1,240 @@
 # Real-Time Black Hole Simulator
 
-This project is a real-time, physically-accurate black hole simulator that runs natively for development and on the web using Rust and `wgpu`. The application visualizes the fascinating and extreme environment around a black hole by ray tracing the paths of light through curved spacetime.
+A real-time, physically-accurate black hole simulator built with Rust and WebGPU. This application visualizes spinning Kerr black holes using advanced general relativity physics, featuring gravitational lensing, frame-dragging effects, and interactive controls for exploring black hole dynamics.
 
-The core of the project is separated into two main components: a physics simulation crate and a rendering crate.
+## Features
 
-*   **`simulation` crate**: Handles the heavy lifting of general relativity, providing the physics structs and calculations for how light travels through curved spacetime.
-*   **`renderer` crate**: Uses `wgpu` for cross-platform rendering. It traces light rays for each pixel on the screen to visualize the black hole and the gravitational lensing of the background starfield.
+- ✅ **Kerr Black Hole Physics** - Accurate simulation of rotating black holes with configurable mass and spin
+- ✅ **Real-Time Ray Tracing** - GPU-accelerated light ray simulation through curved spacetime
+- ✅ **Frame-Dragging Effects** - Visualizes the Lense-Thirring effect from spinning black holes
+- ✅ **Gravitational Lensing** - Accurate distortion of background starfield
+- ✅ **Interactive Debug Controls** - Real-time sliders for FOV, mass, spin, and ray steps
+- ✅ **Cross-Platform** - Runs natively and in web browsers via WebAssembly
+- ✅ **Multi-Input Support** - Keyboard, mouse, and touch controls
+- ✅ **Responsive Design** - Adapts to different screen sizes and orientations
 
-## Current Status
+## Live Demo
 
-The project has a working real-time ray tracer that simulates a black hole:
-- ✅ Cross-platform ray tracing renderer (native + WebAssembly) using `wgpu`.
-- ✅ Renders a Schwarzschild (non-spinning) black hole.
-- ✅ Visualizes gravitational lensing by distorting the background starfield.
-- ✅ Camera system with keyboard, mouse, and touch controls.
-- ✅ Interactive help and debug overlay.
-- ✅ Visual toggles for the starfield and a coordinate grid.
+Experience the simulator directly in your browser: [Live Demo](https://your-deployment-url.com)
 
 ## Quick Start
 
 ### Prerequisites
-- [Nix](https://nixos.org/download.html) (recommended for reproducible environment)
+- [Nix](https://nixos.org/download.html) (recommended)
 - Or: Rust toolchain with wasm32 target, Node.js 22+, wasm-pack
 
-### Running for Development
-
-To run the project with a local development server that supports live reloading:
+### Development Setup
 
 ```bash
-# Enter development environment (with Nix)
+# Using Nix (recommended)
 nix develop
-
-# Navigate to the web directory
 cd www
-
-# Install dependencies and start the dev server
 npm install
 npm run serve
 
-# Open your browser to http://localhost:8080
-```
-
-### Deploying as a Static Site
-
-The project is built as a static site and can be deployed to any static hosting provider (e.g., GitHub Pages, Netlify, Vercel).
-
-```bash
-# From the www directory, create an optimized production build
-cd www
-npm run build
-```
-This command will generate all necessary files in the `www/dist` directory. Upload the contents of this directory to your hosting provider.
-
-### Deploying with AWS Amplify
-
-This project is configured for automated builds and deployments on [AWS Amplify](https://aws.amazon.com/amplify/) using a custom Docker build image.
-
-#### Custom Build Image
-The `Dockerfile` defines a Node.js 22.18.0-slim based build environment with:
-- Rust toolchain (nightly) installed via rustup
-- wasm-pack for WebAssembly compilation
-- Build tools (gcc, libc6-dev, make) for native dependencies
-
-*Note: While the project includes a Nix flake for reproducible local development, the deployment uses a simplified Node.js-based Docker image for AWS Amplify compatibility.*
-
-#### Deployment Steps
-1.  **Build and Push the Custom Docker Image**: 
-    ```bash
-    # Example for Docker Hub
-    docker build -t your-dockerhub-username/black-hole-sim-build:latest .
-    docker push your-dockerhub-username/black-hole-sim-build:latest
-    ```
-
-2.  **Connect to Amplify**: In the AWS Amplify Console, connect this Git repository.
-3.  **Configure Build Settings**:
-    - Go to **Advanced settings** in the build configuration step
-    - Provide the URL to your custom build image (e.g., `your-dockerhub-username/black-hole-sim-build:latest`)
-    - Amplify will use the `amplify.yml` file which runs:
-      - `cd www && npm install && npm run build`
-      - Deploys static files from `/www/dist`
-4.  **Deploy**: Amplify will pull your custom image, run the build commands, and host the static artifacts.
-
-### Alternative (without Nix)
-```bash
-# Ensure wasm32 target is installed
+# Or manually
 rustup target add wasm32-unknown-unknown
-
-# Install wasm-pack
 cargo install wasm-pack
-
-# Navigate to the web directory
 cd www
-
-# Install dependencies
 npm install
-
-# Start dev server or build for production
 npm run serve
-# or
-npm run build
 ```
 
+Open http://localhost:8080 in your browser.
 
-## Core Concepts
+### Production Build
 
-To accurately render a black hole, we must simulate how light behaves in the intensely curved spacetime described by Einstein's theory of General Relativity. This project models a spinning **Kerr black hole** using Kerr-Schild coordinates and incorporates advanced physics like magnetic fields and relativistic effects on an accretion disk.
+```bash
+cd www
+npm run build
+# Static files generated in www/dist/
+```
 
-### From Schwarzschild to Kerr Black Holes
+## Controls
 
-While the initial model focused on a **Schwarzschild black hole** (non-rotating, spherically symmetric), this project has evolved to simulate a **Kerr black hole**. The Kerr metric is necessary to model a rotating black hole and introduces fascinating phenomena like **frame-dragging**, where the black hole's rotation literally drags spacetime along with it.
+### Movement
+- **W/A/S/D** - Move forward/left/backward/right
+- **Space/Shift** - Move up/down  
+- **Mouse Wheel** - Move forward/backward
+- **Q/E** - Turn left/right
+- **Mouse Drag** - Look around (desktop)
+- **Touch** - Left half: movement joystick, Right half: look around (mobile)
 
-To handle the complexities of a spinning black hole without numerical issues, we use **Kerr-Schild coordinates**. This formulation provides a stable, singularity-free metric that is well-behaved across the event horizon, making it ideal for simulations that trace light rays near or across this boundary.
+### Visual Toggles
+- **B** - Cycle background modes (starfield/procedural/none)
+- **G** - Toggle coordinate grid overlay
+- **F** - Toggle FPS counter
+- **?** - Toggle help and debug menu
 
-### Geodesic Integration in Kerr Spacetime
+### Debug Controls (in help menu)
+- **FOV Slider** - Adjust camera field of view (10° - 120°)
+- **Mass Slider** - Change black hole mass (0.1 - 5.0)
+- **Spin Slider** - Set black hole rotation (-1.0 to 1.0)
+- **Ray Steps** - Adjust rendering quality/performance (50 - 1000)
 
-In curved spacetime, light follows paths called **geodesics**. For a Kerr black hole, solving the geodesic equations is simplified by exploiting four conserved quantities for photons:
-- **Energy (E)**
-- **Axial Angular Momentum (Lz)**
-- **Carter's Constant (Q)**
-- **Rest mass (μ=0 for photons)**
+## Physics Implementation
 
-These constants allow the complex second-order geodesic equations to be reformulated into a more manageable set of four first-order ordinary differential equations (ODEs). These equations are then solved numerically using an **adaptive 4th-order Runge-Kutta (RK45) method** to trace light rays backwards from each pixel on the screen. The adaptive step size ensures precision where spacetime curvature is high (near the black hole) and efficiency where it's flatter, stopping integration if a ray crosses the event horizon or escapes to a predefined distance.
+### Kerr Black Hole Model
+The simulator implements a spinning Kerr black hole with:
+- **Event Horizon**: `r = M + √(M² - a²)` where `a = spin × mass`
+- **Frame-Dragging**: Lense-Thirring effect causing spacetime rotation
+- **Adaptive Ray Marching**: Step size adjusts based on gravitational field strength
 
-### Ray Tracing and Relativistic Effects
+### Ray Tracing Method
+- **Backward Ray Tracing**: Traces light paths from camera to determine pixel colors
+- **Geodesic Integration**: Simulates light following curved spacetime paths
+- **Gravitational Acceleration**: `F = 1.5 × rs / r²` with frame-dragging correction
+- **Escape Condition**: Rays beyond 200× black hole mass distance sample background
 
-The renderer works by "backwards" ray tracing from a virtual camera. The final color of each pixel is determined by what the ray encounters:
-
-*   **The Black Hole Shadow**: If a ray's path crosses the event horizon, it is trapped. The pixel is colored black, forming the black hole's "shadow."
-*   **The Accretion Disk**: If the ray intersects the accretion disk, we calculate the observed color based on several relativistic effects:
-    *   **Relativistic Doppler Effect & Beaming**: The disk's rapid orbital motion causes light from the side moving towards the camera to be blueshifted and appear brighter, while light from the receding side is redshifted and dimmer.
-    *   **Gravitational Redshift**: Photons lose energy escaping the black hole's gravity, shifting their color towards red.
-    *   The combination of these effects determines the final observed temperature and intensity of the light from that point on the disk.
-*   **Gravitational Lensing**: If a ray escapes to infinity, its final direction is used to sample a background starfield, producing the characteristic distortion of stars around the black hole.
-
-### Modeling Magnetic Fields and the Accretion Disk
-
-To create a realistic visualization, the simulation incorporates advanced physical models:
-*   **General Relativistic Magnetohydrodynamics (GRMHD)**: This models the behavior of plasma and magnetic fields in the extreme gravity around the black hole, which is crucial for simulating accretion disks and jets. The GRMHD simulation provides the physical environment through which light rays are traced.
-*   **Physically Motivated Accretion Disk**: Instead of a simple visual disk, the model uses the **Shakura-Sunyaev "thin disk"** model. This includes a temperature profile based on the **Novikov-Thorne model** for a fully relativistic treatment, with the luminous inner edge defined by the **Innermost Stable Circular Orbit (ISCO)**. The ISCO's radius depends heavily on the black hole's spin.
+### Rendering Pipeline
+- **Fragment Shader**: GPU-accelerated ray tracing for each pixel
+- **Camera System**: Dynamic FOV with proper perspective projection
+- **Uniform Buffers**: Real-time parameter updates from UI controls
+- **Background Sampling**: Equirectangular starfield mapping with coordinate grid
 
 ## Project Architecture
 
-The project is structured as a Rust workspace to maintain a clean separation of concerns.
-
-```text
-/black-hole-simulator
-|-- Cargo.toml            // Rust workspace configuration
-|-- amplify.yml           // AWS Amplify deployment config
-|-- CLAUDE.md             // AI assistant guidance
-|-- Dockerfile            // Custom Docker build image
-|-- README.md
-|-- /renderer
-|   |-- Cargo.toml
-|   |-- src/
-|   |   |-- camera.rs     // Camera and controls
-|   |   |-- geometry.rs   // Vertex data for the screen quad
-|   |   |-- lib.rs        // Core renderer logic (WASM entry)
-|   |   |-- main.rs       // Native entry point
-|   |   |-- shader.wgsl   // WGSL shader source (embedded)
-|   |-- shaders/
-|       |-- render.wgsl   // The primary WGSL shader for ray tracing
-|-- /simulation
-|   |-- Cargo.toml
-|   |-- src/lib.rs        // Physics logic (geodesics, metrics)
-|-- /www                  // Web frontend (HTML/JS)
-|   |-- bootstrap.js      // JS entry point for WASM
-|   |-- index.html
-|   |-- package.json
-|   |-- pkg/              // Generated WASM package for JS interop
-|   |-- style.css         // CSS for the web page
-|   |-- webpack.config.js
+```
+black-hole-laboratory/
+├── simulation/          # Physics calculations
+│   └── src/lib.rs      # Kerr metric, geodesics, integration
+├── renderer/           # Graphics and interaction
+│   ├── src/
+│   │   ├── lib.rs      # Main renderer (WASM entry)
+│   │   ├── main.rs     # Native binary
+│   │   ├── camera.rs   # Camera system and controls
+│   │   └── shader.wgsl # GPU ray tracing shader
+│   └── milkyway.jpg    # Background starfield texture
+├── www/                # Web frontend
+│   ├── index.html      # UI and debug controls
+│   ├── bootstrap.js    # WASM initialization
+│   └── package.json    # Build configuration
+├── Dockerfile          # AWS Amplify build environment
+└── amplify.yml         # Deployment configuration
 ```
 
-### `simulation` Crate
+### Simulation Crate
+- **KerrBlackHole**: Mass, spin, horizon calculations
+- **ConservedQuantities**: Energy, angular momentum, Carter's constant
+- **AdaptiveRK45**: Numerical integration with error control
+- **KerrLightRay**: Geodesic ray tracing implementation
 
-*   **Responsibilities**: Pure physics calculations.
-*   Contains the foundational data structures (`KerrBlackHole`, `Geodesic`, `KerrLightRay`) and logic for simulating general relativity with Kerr metric support.
-*   The goal is for this crate to define the spacetime metric (e.g., in Kerr-Schild coordinates), calculate Christoffel symbols, and provide a robust geodesic equation solver (e.g., using Runge-Kutta 4).
-*   It is compiled to a library that is used by the `renderer` crate. The current ray tracing is implemented directly in the shader for performance, with plans to use this crate for more accurate physics in the future.
+### Renderer Crate
+- **Cross-Platform**: Native development + WebAssembly deployment
+- **WebGPU Backend**: Hardware-accelerated graphics via wgpu
+- **Real-Time Parameters**: Live updates from JavaScript UI sliders
+- **Input Handling**: Unified system for keyboard, mouse, and touch
 
-### `renderer` Crate
+## Deployment
 
-*   **Responsibilities**: All rendering and user interaction logic.
-*   The core logic is in `src/lib.rs`, which is compiled to WebAssembly to run in the browser.
-*   A thin `src/main.rs` binary is included to run the application natively for development and testing.
-*   Uses `wgpu` for cross-platform graphics with WebGL backend for web.
-*   **Current implementation**: 
-    *   Full graphics pipeline with vertex/fragment shaders
-    *   Camera system with view/projection matrices (`src/camera.rs`)
-    *   Input handling for keyboard, mouse, and touch (`camera.rs`)
-    *   WASM-compatible async initialization and timing
-    *   Renders a single full-screen quad to trigger fragment shader execution for every pixel.
-*   **Ray Tracing Implementation**: The fragment shader (`render.wgsl`) performs the ray tracing. For each pixel, it:
-    *   Calculates the initial direction of a light ray from the camera's perspective.
-    *   Iteratively steps the ray through spacetime, applying a simplified gravitational pull from the black hole at each step.
-    *   Determines if the ray falls into the event horizon (coloring the pixel black) or escapes (coloring it based on the background starfield).
+### Static Hosting
+The project builds to static files compatible with any hosting service:
 
-## Roadmap & Future Improvements
+```bash
+cd www && npm run build
+# Upload www/dist/ contents to your hosting provider
+```
 
-This project is designed to be extensible. The current implementation provides a solid foundation for a real-time Schwarzschild black hole visualization. The next steps focus on transitioning to a more physically accurate and visually complex simulation of a spinning Kerr black hole.
+### AWS Amplify
+Configured for automated deployment with custom Docker build image:
 
-- [x] **Schwarzschild Black Hole**: Simulation of a non-spinning black hole is complete.
-- [x] **Gravitational Lensing**: The lensing effect is visible and emerges from the ray tracing implementation.
-- [ ] **Kerr (Spinning) Black Hole**:
-    - Transition from the Schwarzschild metric to the **Kerr metric** to simulate a rotating black hole and visualize effects like **frame-dragging**.
-    - Implement the geodesic equations in **Kerr-Schild coordinates** to ensure numerical stability across the event horizon.
-    - Reformulate the geodesic equations into a set of first-order ODEs using conserved quantities (Energy, Angular Momentum, Carter's Constant) for efficient numerical integration.
+1. Build and push custom image:
+```bash
+docker build -t your-username/black-hole-sim:latest .
+docker push your-username/black-hole-sim:latest
+```
 
-- [ ] **Physically-Based Accretion Disk**:
-    - Replace the current visual placeholder with a physically-motivated accretion disk based on the **Shakura-Sunyaev "thin disk"** model.
-    - Implement the **Novikov-Thorne model** to calculate the disk's temperature profile, with the luminous inner edge defined by the spin-dependent **Innermost Stable Circular Orbit (ISCO)**.
-    - Develop an efficient algorithm to calculate ray-disk intersections, potentially using precomputed tables for real-time performance.
+2. Connect repository to AWS Amplify
+3. Set custom build image in advanced settings
+4. Amplify uses `amplify.yml` for automated builds
 
-- [ ] **Advanced Relativistic Effects**:
-    - Model **General Relativistic Magnetohydrodynamics (GRMHD)** to simulate the dynamics of plasma and magnetic fields, forming the basis for a realistic accretion disk and jets.
-    - Implement relativistic optics for light emitted from the disk, including:
-        - **Gravitational Redshift**: Light losing energy as it escapes the gravitational well.
-        - **Relativistic Doppler Effect**: Redshifting/blueshifting of light due to the disk's orbital velocity.
-        - **Relativistic Beaming**: The focusing of light in the direction of motion, making the approaching side of the disk appear significantly brighter.
-    - Map the calculated observed temperature and intensity to final pixel colors, potentially using Planck's law for blackbody radiation.
+## Technical Details
 
-- [ ] **Performance Optimization & Accuracy**:
-    - Implement an **adaptive step-size Runge-Kutta solver (e.g., RK45)** for geodesic integration, improving accuracy near the black hole without sacrificing performance.
-    - Enhance GPU acceleration by moving all ray-tracing calculations to shaders.
-    - Utilize **precomputation** for performance-critical calculations, such as ray deflection tables, disk intersection lookups, and color transformations for Doppler effects.
-    - Optimize calculations using **single-precision floating-point numbers** where possible.
+### Performance Optimizations
+- **Adaptive Step Size**: Smaller steps near black hole, larger steps at distance
+- **Early Ray Termination**: Stops tracing when rays hit event horizon or escape
+- **GPU Parallelization**: Fragment shader processes all pixels simultaneously
+- **Efficient Memory Layout**: Optimized uniform buffer structures for GPU
+
+### Browser Compatibility
+- **WebGL 2.0** support required
+- **WebAssembly** with threading support
+- **Modern browsers**: Chrome 57+, Firefox 52+, Safari 11+, Edge 79+
+
+### Mobile Support
+- **Responsive Design**: Adapts to viewport size with device pixel ratio
+- **Touch Controls**: Virtual joystick for movement, drag for camera
+- **Performance Scaling**: Automatic quality adjustment based on device capabilities
+
+## Development
+
+### Building Components
+
+```bash
+# Build WASM package
+wasm-pack build renderer --target web
+
+# Run native version
+cargo run -p renderer
+
+# Run tests
+cargo test
+
+# Format code
+cargo fmt && cargo clippy
+```
+
+### Debug Features
+- **Real-time FPS counter**: Accurate framerate calculation using performance.now()
+- **Position/velocity display**: Current camera state information
+- **Parameter visualization**: Live values for all physics parameters
+- **Grid overlay**: Coordinate reference system
+
+## Future Roadmap
+
+While the current implementation provides a sophisticated foundation with accurate Kerr black hole physics, there are exciting opportunities for visual enhancements and deeper physical modeling:
+
+### Physically-Based Accretion Disk
+- **Shakura-Sunyaev Model**: Replace visual placeholder with physically-motivated accretion disk
+- **Novikov-Thorne Temperature Profile**: Calculate realistic disk temperature based on orbital dynamics
+- **ISCO-Dependent Structure**: Inner disk edge determined by spin-dependent Innermost Stable Circular Orbit
+- **Efficient Ray-Disk Intersection**: Optimized algorithms for real-time performance
+
+### Advanced Relativistic Effects
+- **General Relativistic Magnetohydrodynamics (GRMHD)**: Model plasma and magnetic field dynamics
+- **Relativistic Optics**: Implement comprehensive light emission effects:
+  - **Gravitational Redshift**: Energy loss as photons escape gravitational well
+  - **Relativistic Doppler Effect**: Frequency shifts from orbital motion
+  - **Relativistic Beaming**: Directional focusing enhancing approaching-side brightness
+- **Blackbody Radiation**: Map temperature to realistic colors using Planck's law
+
+### Jets and Magnetospheric Effects
+- **Blandford-Znajek Mechanism**: Model energy extraction from rotating black holes
+- **Relativistic Jets**: Simulate high-energy particle beams along spin axis
+- **Magnetic Field Visualization**: Show field lines and plasma dynamics
+- **Ergosphere Effects**: Visualize frame-dragging in the ergosphere region
+
+### Performance & Accuracy Improvements
+- **GPU Geodesic Integration**: Migrate CPU-based Kerr calculations to compute shaders
+- **Precomputed Tables**: Ray deflection lookups and intersection caching
+- **Adaptive Quality**: Dynamic ray step adjustment based on device performance
+- **Multi-Scale Rendering**: Efficient handling of vastly different length scales
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature-name`)
+3. Make your changes
+4. Add tests for new functionality
+5. Run `cargo test && cargo clippy`
+6. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Acknowledgements
 
-The starfield background image (`milkyway.jpg`) is from the European Southern Observatory, used under the Creative Commons license.
-
-- **Milky Way background image**: © 2009 [European Southern Observatory](http://www.eso.org/) (S. Brunier) under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.en) license. Sourced from [ESA's black hole visualizer](https://www.esa.int/gsp/ACT/phy/Projects/Blackholes/WebGL/).
+- **Milky Way background**: © 2009 [European Southern Observatory](http://www.eso.org/) (S. Brunier) under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+- **Physics References**: Misner, Thorne & Wheeler's "Gravitation" and Chandrasekhar's "The Mathematical Theory of Black Holes"
+- **WebGPU Implementation**: Built with [wgpu-rs](https://github.com/gfx-rs/wgpu) graphics library

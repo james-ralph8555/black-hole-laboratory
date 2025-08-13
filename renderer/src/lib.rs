@@ -323,9 +323,30 @@ impl<'a> State<'a> {
             label: Some("black_hole_bind_group"),
         });
 
-        let sky_bytes = include_bytes!("milkyway.jpg");
-        let sky_texture =
-            texture::Texture::from_bytes(&device, &queue, sky_bytes, "milkyway.jpg").unwrap();
+        // Query the adapter's hardware capabilities.
+        let limits = device.limits();
+        let mut background_mode = 0; // Default to texture mode (0)
+
+        // Check if the device's max_texture_dimension_2d can handle our high-resolution skybox.
+        // The milkyway.jpg is typically 6000px wide, so we check for that capability.
+        let sky_texture = if limits.max_texture_dimension_2d >= 6000 {
+            #[cfg(target_arch = "wasm32")]
+            log::info!("Device supports high-res texture (limit: {}px).", limits.max_texture_dimension_2d);
+            
+            let sky_bytes = include_bytes!("milkyway.jpg");
+            texture::Texture::from_bytes(&device, &queue, sky_bytes, "milkyway.jpg").unwrap()
+        } else {
+            #[cfg(target_arch = "wasm32")]
+            log::warn!(
+                "Device max texture size ({}) is less than required (6000px). Falling back to procedural stars.",
+                limits.max_texture_dimension_2d
+            );
+            
+            // Set mode to procedural stars (1)
+            background_mode = 1; 
+            // Create a dummy 1x1 texture to satisfy the render pipeline
+            texture::Texture::create_1x1_black_pixel(&device, &queue, "fallback_texture").unwrap()
+        };
 
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -448,7 +469,7 @@ impl<'a> State<'a> {
             black_hole_bind_group,
             sky_texture,
             sky_bind_group,
-            background_mode: 0, // 0: texture, 1: procedural, 2: none
+            background_mode, // 0: texture, 1: procedural, 2: none
             // Initialize debug parameters
             debug_fov,
             debug_mass,

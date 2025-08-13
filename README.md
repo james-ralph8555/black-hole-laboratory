@@ -145,20 +145,27 @@ The project is structured as a Rust workspace to maintain a clean separation of 
 
 ```text
 /black-hole-simulator
-|-- Cargo.toml
-|-- /www                  // Web frontend assets
+|-- Cargo.toml            // Rust workspace configuration
+|-- amplify.yml           // AWS Amplify deployment config
+|-- CLAUDE.md             // AI assistant guidance
+|-- Dockerfile            // Custom Docker build image
+|-- README.md
+|-- /renderer
+|   |-- Cargo.toml
+|   |-- src/
+|   |   |-- camera.rs     // Camera and controls
+|   |   |-- lib.rs        // Core renderer logic (WASM entry)
+|   |   |-- main.rs       // Native entry point
+|   |-- shaders/
+|       |-- render.wgsl   // The WGSL shader for ray tracing
+|-- /simulation
+|   |-- Cargo.toml
+|   |-- src/lib.rs        // Physics logic (geodesics, metrics)
+|-- /www                  // Web frontend (HTML/JS)
+|   |-- bootstrap.js      // JS entry point for WASM
 |   |-- index.html
 |   |-- package.json
 |   |-- webpack.config.js
-|-- /simulation
-|   |-- Cargo.toml
-|   |-- src/lib.rs        // Defines the metric, Christoffel symbols, and geodesic solver.
-|-- /renderer
-|   |-- Cargo.toml
-|   |-- src/main.rs       // Native entry point for development
-|   |-- src/lib.rs        // Core renderer logic, compiles to WASM
-|   |-- shaders/
-|       |-- render.wgsl   // The shader that performs the ray tracing.
 ```
 
 ### `simulation` Crate

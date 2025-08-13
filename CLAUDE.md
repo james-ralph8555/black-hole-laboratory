@@ -33,8 +33,8 @@ The project is a Rust workspace with clear separation of concerns:
 
 ### `simulation` crate (`simulation/`)
 - **Purpose**: Pure physics calculations for general relativity
-- **Current state**: Contains foundational structs for physics simulation (`KerrBlackHole`, `Geodesic`, `KerrLightRay`) and comprehensive Kerr metric implementation with adaptive RK45 integration. The main ray tracing logic is currently implemented directly in the shader for performance.
-- **Future**: Will implement Kerr-Schild coordinates, Christoffel symbols, and more accurate geodesic equation integration using the `LightRay` struct.
+- **Current state**: Contains extensive Kerr black hole infrastructure (structs, metric calculations, adaptive RK45 integration) but is currently unused. The main ray tracing logic is implemented directly in the shader for performance.
+- **Future**: The sophisticated Kerr metric implementation will be utilized for accurate Kerr black hole simulation when migrating from simplified shader physics.
 - **Dependencies**: None (pure math)
 
 ### `renderer` crate (`renderer/`)
@@ -72,10 +72,10 @@ The project uses Nix flakes for reproducible development environments:
   - WASM-compatible time handling for smooth movement
 - **Rendering pipeline**: Vertex/fragment shader setup with uniform buffers for camera and black hole properties.
 - **Vertex data**: A single full-screen quad with position and texture coordinate attributes.
-- **Physics target**: A simplified Schwarzschild black hole simulation is implemented directly in the fragment shader.
-- **Ray tracing approach**: The fragment shader performs backwards ray tracing from the camera for each pixel. The path of each ray is deflected based on a simplified gravitational model, producing a gravitational lensing effect.
-- **Coordinate system**: Currently uses a simplified model. Plans to use Kerr-Schild coordinates to avoid singularities at the event horizon for a more accurate simulation.
-- **Integration method**: Plans to use an adaptive 4th-order Runge-Kutta (e.g., RK45) for geodesic integration.
+- **Physics target**: A simplified Schwarzschild black hole with basic frame-dragging approximation, implemented directly in the fragment shader for performance.
+- **Ray tracing approach**: The fragment shader performs backwards ray tracing from the camera. Each ray is deflected using a simplified gravitational model with basic radial acceleration and approximate frame-dragging effects.
+- **Coordinate system**: Uses Cartesian coordinates with simple gravitational deflection, not true general relativistic coordinates.
+- **Integration method**: Simple Euler integration with adaptive step sizes in the shader. The simulation crate contains sophisticated RK45 integration but is currently unused.
 
 ## Deployment
 
@@ -95,14 +95,14 @@ The project is configured for deployment on AWS Amplify using a custom Docker bu
 
 ## Future Roadmap
 
-The codebase is designed for extensibility. The future roadmap focuses on transitioning to a more physically accurate and visually complex simulation of a spinning Kerr black hole.
+The codebase is designed for extensibility. The future roadmap focuses on transitioning from the current simplified shader physics to a physically accurate simulation of a spinning Kerr black hole.
 
-- [x] **Schwarzschild Black Hole**: Simulation of a non-spinning black hole is complete.
-- [x] **Gravitational Lensing**: The lensing effect is visible and emerges from the ray tracing implementation.
-- [ ] **Kerr (Spinning) Black Hole**:
-    - Transition from the Schwarzschild metric to the **Kerr metric** to simulate a rotating black hole and visualize effects like **frame-dragging**.
-    - Implement the geodesic equations in **Kerr-Schild coordinates** to ensure numerical stability across the event horizon.
-    - Reformulate the geodesic equations into a set of first-order ODEs using conserved quantities (Energy, Angular Momentum, Carter's Constant) for efficient numerical integration.
+- [x] **Simplified Schwarzschild-like Black Hole**: Basic gravitational lensing with approximate frame-dragging implemented in shader.
+- [x] **Basic Gravitational Lensing**: Visible light deflection emerges from the simplified ray tracing implementation.
+- [ ] **Realistic Kerr (Spinning) Black Hole**:
+    - Replace simplified shader physics with proper **Kerr metric** implementation from the simulation crate to accurately simulate rotating black holes and **frame-dragging**.
+    - Utilize existing **Kerr-Schild coordinates** implementation to ensure numerical stability across the event horizon.
+    - Integrate the existing first-order ODE system using conserved quantities (Energy, Angular Momentum, Carter's Constant) with the adaptive **RK45 solver** already implemented in the simulation crate.
 
 - [ ] **Physically-Based Accretion Disk**:
     - Replace the current visual placeholder with a physically-motivated accretion disk based on the **Shakura-Sunyaev "thin disk"** model.
@@ -118,7 +118,7 @@ The codebase is designed for extensibility. The future roadmap focuses on transi
     - Map the calculated observed temperature and intensity to final pixel colors, potentially using Planck's law for blackbody radiation.
 
 - [ ] **Performance Optimization & Accuracy**:
-    - Implement an **adaptive step-size Runge-Kutta solver (e.g., RK45)** for geodesic integration, improving accuracy near the black hole without sacrificing performance.
-    - Enhance GPU acceleration by moving all ray-tracing calculations to shaders.
+    - Migrate from the current simplified shader physics to utilize the existing **adaptive RK45 solver** from the simulation crate for accurate geodesic integration.
+    - Enhance GPU acceleration by optimizing the integration of proper relativistic calculations with shader performance.
     - Utilize **precomputation** for performance-critical calculations, such as ray deflection tables, disk intersection lookups, and color transformations for Doppler effects.
-    - Optimize calculations using **single-precision floating-point numbers** where possible.
+    - Balance the sophisticated physics calculations from the simulation crate with real-time shader performance requirements.

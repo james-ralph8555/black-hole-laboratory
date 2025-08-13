@@ -1,14 +1,14 @@
 # Real-Time Black Hole Simulator
 
-A real-time black hole visualization built with Rust and WebGPU. This application simulates the visual effects of spinning Kerr black holes, featuring gravitational lensing, frame-dragging effects, and interactive controls for exploring black hole dynamics.
+A real-time black hole visualization built with Rust and WebGPU. This application simulates the visual effects of black holes using a simplified gravitational model with basic frame-dragging approximation, featuring gravitational lensing effects and interactive controls.
 
 ![Demo](assets/demo.jpg)
 
 ## Features
 
-- ✅ **Kerr Black Hole Physics** - Simulates rotating black holes with configurable mass and spin
-- ✅ **Real-Time Ray Tracing** - GPU-accelerated light ray simulation through curved spacetime
-- ✅ **Frame-Dragging Effects** - Visualizes the Lense-Thirring effect from spinning black holes
+- ✅ **Simplified Black Hole Physics** - Approximated gravitational effects with basic frame-dragging
+- ✅ **Real-Time Ray Tracing** - GPU-accelerated ray deflection through simplified gravitational model
+- ✅ **Frame-Dragging Approximation** - Basic tangential effects from spinning black holes
 - ✅ **Gravitational Lensing** - Visual distortion of background starfield
 - ✅ **Interactive Debug Controls** - Real-time sliders for FOV, mass, spin, and ray steps
 - ✅ **Performance Profiling** - High-precision timing with DWARF debug symbols for flame graphs
@@ -74,19 +74,18 @@ npm run build
 
 ## Physics Implementation
 
-### Kerr Black Hole Model
-The visualization implements a spinning Kerr black hole model with:
-- **Event Horizons**: Outer and inner horizons calculated from mass and spin
-- **Frame-Dragging**: Lense-Thirring effect causing spacetime rotation around spinning black holes
-- **ISCO Radius**: Innermost Stable Circular Orbit depends on black hole spin
-- **Conserved Quantities**: Energy, angular momentum, and Carter constant guide light rays
+### Simplified Black Hole Model
+The visualization currently implements a simplified gravitational model with:
+- **Basic Event Horizon**: Calculated using approximate Kerr horizon radius
+- **Frame-Dragging Approximation**: Simplified tangential acceleration based on spin
+- **Gravitational Deflection**: Basic radial acceleration toward black hole center
+- **Cartesian Coordinates**: Simple 3D space without relativistic coordinate systems
 
 ### Ray Tracing Method
-- **Geodesic Integration**: Light rays follow curved spacetime using Kerr metric
-- **RK4 Integration**: 4th-order Runge-Kutta solver for numerical accuracy
-- **Adaptive Step Size**: Smaller steps near the black hole for precision
-- **Kerr-Schild Coordinates**: Avoids singularities at the event horizon
-- **Conserved Quantities**: Uses energy, angular momentum, and Carter constant
+- **Simplified Integration**: Basic Euler integration with adaptive step sizes in shader
+- **GPU Acceleration**: All calculations performed in fragment shader for performance
+- **Adaptive Step Size**: Smaller steps near the black hole, larger steps at distance
+- **Early Termination**: Rays stop when hitting event horizon or escaping to infinity
 
 ### Rendering Pipeline
 - **Fragment Shader**: All physics calculations performed on GPU
@@ -98,14 +97,14 @@ The visualization implements a spinning Kerr black hole model with:
 
 ```
 black-hole-laboratory/
-├── simulation/          # Black hole parameter calculations
-│   └── src/lib.rs      # Event horizons, ISCO radius, ergosphere
+├── simulation/          # Advanced physics (currently unused)
+│   └── src/lib.rs      # Full Kerr black hole implementation with RK45 integration
 ├── renderer/           # Graphics and interaction
 │   ├── src/
 │   │   ├── lib.rs      # Main renderer (WASM entry)
 │   │   ├── main.rs     # Native binary
 │   │   ├── camera.rs   # Camera system and controls
-│   │   └── shader.wgsl # GPU ray tracing with Kerr geodesic integration
+│   │   └── shader.wgsl # GPU ray tracing with simplified physics
 │   └── milkyway.jpg    # Background starfield texture
 ├── www/                # Web frontend
 │   ├── index.html      # UI and debug controls
@@ -116,16 +115,17 @@ black-hole-laboratory/
 ```
 
 ### Simulation Crate
-- **KerrBlackHole**: Mass, spin, and derived parameter calculations
-  - Event horizon radii (outer and inner)
-  - ISCO (Innermost Stable Circular Orbit) radius
-  - Ergosphere radius at given angles
-- **Parameter Validation**: Ensures physical constraints (|spin| ≤ mass)
+Contains sophisticated but currently unused physics implementations:
+- **KerrBlackHole**: Complete Kerr metric with mass, spin, and derived parameters
+- **AdaptiveRK45**: High-precision geodesic integration with error control
+- **ConservedQuantities**: Energy, angular momentum, and Carter constant calculations
+- **Kerr-Schild Coordinates**: Full metric implementation avoiding singularities
+- **Future Integration**: Ready for migration from simplified shader physics
 
 ### Renderer Crate
 - **Cross-Platform**: Native development + WebAssembly deployment
 - **WebGPU Backend**: Hardware-accelerated graphics via wgpu
-- **Shader-Based Physics**: All Kerr geodesic calculations performed on GPU
+- **Shader-Based Physics**: Simplified gravitational calculations performed on GPU
 - **Real-Time Parameters**: Live updates from JavaScript UI sliders
 - **Input Handling**: Unified system for keyboard, mouse, and touch
 
@@ -214,7 +214,7 @@ Enable profiling with the **P** key to monitor performance bottlenecks and optim
 
 ## Future Roadmap
 
-While the current implementation provides a solid foundation with Kerr black hole physics, there are exciting opportunities for visual enhancements and more sophisticated physical modeling:
+The current implementation provides a solid foundation with simplified physics. The roadmap focuses on transitioning to the sophisticated physics implementations already present in the simulation crate:
 
 ### Physically-Based Accretion Disk
 - **Shakura-Sunyaev Model**: Replace visual placeholder with physically-motivated accretion disk
@@ -236,8 +236,14 @@ While the current implementation provides a solid foundation with Kerr black hol
 - **Magnetic Field Visualization**: Show field lines and plasma dynamics
 - **Ergosphere Effects**: Visualize frame-dragging in the ergosphere region
 
+### Realistic Kerr Black Hole Physics
+- **Migrate to Simulation Crate**: Replace simplified shader physics with full Kerr metric implementation
+- **Adaptive RK45 Integration**: Utilize existing high-precision geodesic solver
+- **Kerr-Schild Coordinates**: Implement existing coordinate system for numerical stability
+- **Conserved Quantities**: Use energy, angular momentum, and Carter constant calculations
+
 ### Performance & Accuracy Improvements
-- **GPU Geodesic Integration**: Migrate CPU-based Kerr calculations to compute shaders
+- **GPU-CPU Integration**: Optimize the transition from simulation crate physics to shader rendering
 - **Precomputed Tables**: Ray deflection lookups and intersection caching
 - **Adaptive Quality**: Dynamic ray step adjustment based on device performance
 - **Multi-Scale Rendering**: Efficient handling of vastly different length scales

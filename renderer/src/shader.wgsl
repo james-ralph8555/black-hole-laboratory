@@ -122,18 +122,28 @@ fn sample_environment(dir: vec3<f32>) -> vec3<f32> {
             color = textureSample(t_sky, s_sky, uv).rgb;
         } else {
             // Mode 1: Procedural stars
-            let star_density = 500.0;
+            let star_density = 2000.0; // Increased resolution
             let star_coords = floor(uv * star_density);
-            let star_hash = fract(sin(dot(star_coords, vec2<f32>(12.9898, 78.233))) * 43758.5453);
+            let star_hash_base = dot(star_coords, vec2<f32>(12.9898, 78.233));
+            let star_hash = fract(sin(star_hash_base) * 43758.5453);
             
-            if (star_hash > 0.995) {
-                color = vec3<f32>(1.0, 1.0, 0.8); // Bright star
+            if (star_hash > 0.998) {
+                // Glittery, colorful stars
+                let star_color_hash = fract(sin(star_hash_base * 0.5) * 43758.5453);
+                let star_color = vec3<f32>(
+                    0.6 + 0.4 * sin(star_color_hash * 6.2831), 
+                    0.6 + 0.4 * sin(star_color_hash * 6.2831 + 2.0), 
+                    0.6 + 0.4 * sin(star_color_hash * 6.2831 + 4.0)
+                );
+                let brightness = 0.8 + 0.2 * fract(star_hash * 100.0);
+                color = star_color * brightness;
             } else if (star_hash > 0.99) {
-                color = vec3<f32>(0.5, 0.5, 0.4); // Dim star
+                // Dimmer, background stars
+                color = vec3<f32>(0.4, 0.4, 0.6);
             } else {
-                // Space background with slight gradient
-                let gradient = 0.1 * (1.0 - abs(dir.y));
-                color = vec3<f32>(gradient * 0.1, gradient * 0.15, gradient * 0.3);
+                // More purple and glittery space background
+                let gradient = 0.15 * (1.0 - abs(dir.y));
+                color = vec3<f32>(gradient * 0.6, gradient * 0.2, gradient * 0.8);
             }
         }
     } else {

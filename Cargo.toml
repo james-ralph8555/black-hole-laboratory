@@ -9,7 +9,7 @@ default-members = ["renderer"]
 # Custom profile for development with debug info (for profiling)
 [profile.dev-release]
 inherits = "release"
-debug = true  # Enable DWARF debug info for flame graphs
+debug = 2  # Enable DWARF full debug info for flame graphs
 
 # Production profile without debug info (smaller binary size)
 [profile.release]

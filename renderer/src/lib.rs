@@ -36,7 +36,7 @@ extern "C" {
     fn js_set_profiling_visible(visible: bool);
 }
 
-use wgpu::util::DeviceExt;
+use wgpu::util::{DeviceExt, StagingBelt};
 
 mod camera;
 use camera::{Camera, CameraController, CameraUniform};
@@ -125,6 +125,7 @@ struct State<'a> {
     #[cfg(target_arch = "wasm32")]
     last_render_time: f64, // Use f64 for JS performance.now() timestamp
     profiler: Profiler,
+    staging_belt: StagingBelt,
 }
 
 impl<'a> State<'a> {
@@ -462,6 +463,10 @@ impl<'a> State<'a> {
 
         let profiler = Profiler::new(&device);
 
+        // Initialize staging belt for efficient buffer updates
+        // Chunk size should be larger than uniform buffer updates (typically 256-4096 bytes is good)
+        let staging_belt = StagingBelt::new(1024);
+
         Self {
             window,
             surface,
@@ -497,6 +502,7 @@ impl<'a> State<'a> {
             #[cfg(target_arch = "wasm32")]
             last_render_time: web_sys::window().unwrap().performance().unwrap().now(),
             profiler,
+            staging_belt,
         }
     }
 
@@ -605,7 +611,6 @@ impl<'a> State<'a> {
             self.config.height as f32
         );
         self.camera_uniform.background_mode = if self.background_mode == 1 { 1.0 } else { 0.0 };
-        self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
 
         // Update debug parameters from global state (WASM) or local state (native)
         #[cfg(target_arch = "wasm32")]
@@ -631,7 +636,6 @@ impl<'a> State<'a> {
         self.black_hole_uniform.mass = self.debug_mass;
         self.black_hole_uniform.spin = self.debug_spin;
         self.black_hole_uniform.ray_steps = self.debug_ray_steps;
-        self.queue.write_buffer(&self.black_hole_buffer, 0, bytemuck::cast_slice(&[self.black_hole_uniform]));
 
         // Update HTML help overlay for WASM
         #[cfg(target_arch = "wasm32")]
@@ -689,6 +693,33 @@ impl<'a> State<'a> {
                 label: Some("Render Encoder"),
             });
 
+        // Update uniform buffers using StagingBelt for better performance
+        {
+            let camera_uniform_array = [self.camera_uniform];
+            let camera_data = bytemuck::cast_slice(&camera_uniform_array);
+            let mut camera_view = self.staging_belt.write_buffer(
+                &mut encoder,
+                &self.camera_buffer,
+                0,
+                wgpu::BufferSize::new(camera_data.len() as u64).unwrap(),
+                &self.device,
+            );
+            camera_view.copy_from_slice(camera_data);
+        }
+
+        {
+            let black_hole_uniform_array = [self.black_hole_uniform];
+            let black_hole_data = bytemuck::cast_slice(&black_hole_uniform_array);
+            let mut black_hole_view = self.staging_belt.write_buffer(
+                &mut encoder,
+                &self.black_hole_buffer,
+                0,
+                wgpu::BufferSize::new(black_hole_data.len() as u64).unwrap(),
+                &self.device,
+            );
+            black_hole_view.copy_from_slice(black_hole_data);
+        }
+
         // Begin GPU timing
         self.profiler.begin_gpu_timing(&mut encoder);
 
@@ -726,12 +757,18 @@ impl<'a> State<'a> {
         self.profiler.end_gpu_timing(&mut encoder);
         self.profiler.resolve_gpu_timing(&mut encoder);
         
+        // Finish staging belt before submitting commands
+        self.staging_belt.finish();
+        
         self.profiler.end_render_encode();
         
         self.queue.submit(std::iter::once(encoder.finish()));
         
         // Try to read GPU timing results from previous frames
         self.profiler.try_read_gpu_timing(&self.device, &self.queue);
+        
+        // Recall staging belt after submission to reuse buffers
+        self.staging_belt.recall();
         
         self.profiler.end_frame();
         

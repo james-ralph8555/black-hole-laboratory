@@ -459,7 +459,8 @@ impl<'a> State<'a> {
             multiview: None,
         });
 
-        let camera_controller = CameraController::new(4.0);
+        let mut camera_controller = CameraController::new(4.0);
+        camera_controller.set_initial_camera_state(camera.eye, 270.0, 0.0);
 
         #[cfg(target_arch = "wasm32")]
         log::info!("Render pipeline created");

@@ -164,6 +164,9 @@ window.setHelpVisible = function(visible) {
     }
     
     helpFlashVisible = false;
+    
+    // Disable the auto-hide timer since user manually opened help
+    helpStartupTimer = 0;
   }
 };
 

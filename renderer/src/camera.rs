@@ -2,6 +2,9 @@ use cgmath::*;
 use winit::event::ElementState;
 use winit::keyboard::KeyCode;
 
+#[cfg(target_arch = "wasm32")]
+use web_sys;
+
 #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
     1.0, 0.0, 0.0, 0.0,
@@ -164,10 +167,21 @@ pub struct CameraController {
     pub frame_count: u32,
     pub fps: f32,
     pub last_fps_time: f32,
+    // Camera reset functionality
+    initial_position: Point3<f32>,
+    initial_yaw: f32,
+    initial_pitch: f32,
+    reset_requested: bool,
+    // Triple tap detection for mobile
+    last_tap_times: Vec<f64>,
+    triple_tap_threshold: f64,
 }
 
 impl CameraController {
     pub fn new(speed: f32) -> Self {
+        let initial_yaw = 270.0; // 270° looks towards -Z (black hole at origin from camera at -Z)
+        let initial_pitch = 0.0;
+        
         Self {
             amount_left: 0.0,
             amount_right: 0.0,
@@ -181,8 +195,8 @@ impl CameraController {
             acceleration: speed * 5.0,  // Acceleration rate
             current_velocity: Vector3::zero(),
             sensitivity: 0.1,
-            yaw: 270.0, // 270° looks towards -Z (black hole at origin from camera at -Z)
-            pitch: 0.0,
+            yaw: initial_yaw,
+            pitch: initial_pitch,
             mouse_pressed: false,
             last_mouse_pos: None,
             touch_joystick_id: None,
@@ -199,6 +213,49 @@ impl CameraController {
             frame_count: 0,
             fps: 0.0,
             last_fps_time: 0.0,
+            // Camera reset functionality - will be set properly when camera is initialized
+            initial_position: Point3::new(0.0, 0.0, -40.0),
+            initial_yaw,
+            initial_pitch,
+            reset_requested: false,
+            // Triple tap detection for mobile
+            last_tap_times: Vec::new(),
+            triple_tap_threshold: 0.5, // 500ms between taps
+        }
+    }
+
+    pub fn set_initial_camera_state(&mut self, position: Point3<f32>, yaw: f32, pitch: f32) {
+        self.initial_position = position;
+        self.initial_yaw = yaw;
+        self.initial_pitch = pitch;
+    }
+
+    pub fn reset_camera(&mut self, camera: &mut Camera) {
+        camera.eye = self.initial_position;
+        self.yaw = self.initial_yaw;
+        self.pitch = self.initial_pitch;
+        self.current_velocity = Vector3::zero();
+        
+        // Update camera target to match the reset orientation
+        let yaw_rad = self.yaw.to_radians();
+        let pitch_rad = self.pitch.to_radians();
+        
+        let forward = Vector3::new(
+            yaw_rad.cos() * pitch_rad.cos(),
+            pitch_rad.sin(),
+            yaw_rad.sin() * pitch_rad.cos(),
+        ).normalize();
+        
+        camera.target = camera.eye + forward;
+        camera.up = Vector3::unit_y();
+    }
+
+    pub fn check_and_clear_reset_request(&mut self) -> bool {
+        if self.reset_requested {
+            self.reset_requested = false;
+            true
+        } else {
+            false
         }
     }
 
@@ -238,12 +295,49 @@ impl CameraController {
         }
     }
 
+    fn check_triple_tap(&mut self, timestamp: f64) -> bool {
+        // Add current tap time
+        self.last_tap_times.push(timestamp);
+        
+        // Keep only recent taps (within threshold)
+        let cutoff_time = timestamp - self.triple_tap_threshold;
+        self.last_tap_times.retain(|&t| t > cutoff_time);
+        
+        // Check if we have 3 or more recent taps
+        if self.last_tap_times.len() >= 3 {
+            self.last_tap_times.clear(); // Clear to prevent multiple resets
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn process_touch(&mut self, touch: &winit::event::Touch, window_size: winit::dpi::PhysicalSize<u32>) {
         let pos = vec2(touch.location.x, touch.location.y);
         let half_width = window_size.width as f64 / 2.0;
 
         match touch.phase {
             winit::event::TouchPhase::Started => {
+                // Check for triple tap 
+                let timestamp = {
+                    #[cfg(target_arch = "wasm32")]
+                    {
+                        web_sys::window().unwrap().performance().unwrap().now() / 1000.0
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_secs_f64()
+                    }
+                };
+                
+                if self.check_triple_tap(timestamp) {
+                    self.reset_requested = true;
+                    return; // Don't process as regular touch if it's a triple tap
+                }
+                
                 if pos.x < half_width { // Left side: movement
                     if self.touch_joystick_id.is_none() {
                         self.touch_joystick_id = Some(touch.id);
@@ -360,12 +454,25 @@ impl CameraController {
                 }
                 true
             }
+            KeyCode::KeyR => {
+                // Reset camera to initial position
+                if state == ElementState::Pressed {
+                    self.reset_requested = true;
+                }
+                true
+            }
             _ => false,
         }
     }
 
     pub fn update_camera(&mut self, camera: &mut Camera, dt: std::time::Duration) {
         let dt = dt.as_secs_f32();
+        
+        // Check for reset request first
+        if self.check_and_clear_reset_request() {
+            self.reset_camera(camera);
+            return; // Early return after reset
+        }
 
         // Clamp pitch to prevent flipping
         self.pitch = self.pitch.clamp(-89.0, 89.0);

@@ -263,8 +263,8 @@ impl CameraController {
                 } else if Some(touch.id) == self.touch_look_id {
                     if let Some(start_pos) = self.touch_look_start_pos {
                         let delta = pos - start_pos;
-                        self.yaw += delta.x as f32 * self.sensitivity * 0.5; // Touch has different sensitivity
-                        self.pitch -= delta.y as f32 * self.sensitivity * 0.5;
+                        self.yaw -= delta.x as f32 * self.sensitivity * 0.5; // Touch has different sensitivity - inverted
+                        self.pitch += delta.y as f32 * self.sensitivity * 0.5; // Inverted
                     }
                     self.touch_look_start_pos = Some(pos);
                 }

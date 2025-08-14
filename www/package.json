@@ -3,11 +3,13 @@
     "private": true,
     "scripts": {
       "build": "webpack --mode=production --config webpack.config.js",
-      "serve": "webpack-dev-server --mode=development --config webpack.config.js"
+      "serve": "webpack-dev-server --mode=development --config webpack.config.js",
+      "serve-prod": "npx serve dist -p 8080"
     },
     "devDependencies": {
       "@wasm-tool/wasm-pack-plugin": "^1.6.0",
       "copy-webpack-plugin": "^11.0.0",
+      "serve": "^14.2.0",
       "webpack": "^5.75.0",
       "webpack-cli": "^5.0.1",
       "webpack-dev-server": "^4.11.1"

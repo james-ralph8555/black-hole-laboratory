@@ -34,6 +34,9 @@ extern "C" {
     
     #[wasm_bindgen(js_name = setProfilingVisible)]
     fn js_set_profiling_visible(visible: bool);
+    
+    #[wasm_bindgen(js_name = hideLoadingScreen)]
+    fn js_hide_loading_screen();
 }
 
 use wgpu::util::{DeviceExt, StagingBelt};
@@ -834,6 +837,8 @@ impl ApplicationHandler for App {
                     let new_state = State::new(window_for_wasm).await;
                     *state_ref.borrow_mut() = Some(new_state);
                     log::info!("Successfully created and stored WASM state");
+                    // Hide loading screen now that renderer is ready
+                    js_hide_loading_screen();
                 });
             } else {
                 *self.state.borrow_mut() = Some(pollster::block_on(State::new(window)));

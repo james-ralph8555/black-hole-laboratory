@@ -287,14 +287,39 @@ function setupDebugControls() {
     (value) => value.toFixed(0));
 }
 
+function updateLoadingText(text) {
+  const loadingText = document.getElementById('loading-screen')?.querySelector('.loading-text');
+  if (loadingText) {
+    loadingText.textContent = text;
+  }
+}
+
+function hideLoadingScreen() {
+  const loadingScreen = document.getElementById('loading-screen');
+  if (loadingScreen) {
+    loadingScreen.style.transition = 'opacity 0.5s ease-out';
+    loadingScreen.style.opacity = '0';
+    setTimeout(() => {
+      loadingScreen.style.display = 'none';
+    }, 500);
+  }
+}
+
+// Make hideLoadingScreen available globally for WASM to call
+window.hideLoadingScreen = hideLoadingScreen;
+
 async function main() {
   // Set up canvas sizing before initializing WASM
   setupCanvas();
   setupHelpOverlay();
   
+  updateLoadingText('Loading WebAssembly module...');
+  
   // Wait for the wasm module to be compiled and initialized
   wasmModule = await init();
 
+  updateLoadingText('Setting up graphics context...');
+  
   // Set up debug controls now that WASM is loaded
   setupDebugControls();
 
@@ -310,7 +335,10 @@ async function main() {
     });
   }
 
+  updateLoadingText('Starting renderer...');
+
   // Now that initialization is complete, it's safe to call our function
+  // The WASM renderer will call hideLoadingScreen() when it's ready
   run();
 }
 

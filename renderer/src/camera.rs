@@ -358,7 +358,7 @@ impl CameraController {
                     if let Some(start_pos) = self.touch_look_start_pos {
                         let delta = pos - start_pos;
                         self.yaw -= delta.x as f32 * self.sensitivity * 0.5; // Touch has different sensitivity - inverted
-                        self.pitch += delta.y as f32 * self.sensitivity * 0.5; // Inverted
+                        self.pitch -= delta.y as f32 * self.sensitivity * 0.5; // Inverted
                     }
                     self.touch_look_start_pos = Some(pos);
                 }

@@ -253,3 +253,4 @@ The current implementation provides a solid foundation with simplified physics. 
 - **Milky Way background**: © 2009 [European Southern Observatory](http://www.eso.org/) (S. Brunier) under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 - **WebGPU Implementation**: Built with [wgpu-rs](https://github.com/gfx-rs/wgpu) graphics library
 - **AWS Amplify Build**: [aws-samples/aws-amplify-webassembly](https://github.com/aws-samples/aws-amplify-webassembly)
+- **Ray Tracing Optimizations**: Inspired by techniques from [RayTracing/gpu-tracing](https://github.com/RayTracing/gpu-tracing/tree/dev)

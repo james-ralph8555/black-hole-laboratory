@@ -80,8 +80,10 @@ fn trace_ray(start_pos: vec3<f32>, ray_dir: vec3<f32>, mass: f32, max_steps: i32
     
     // Precompute constants outside loop
     let escape_distance = 200.0 * mass;
+    let escape_distance_sq = escape_distance * escape_distance;
     let a = spin * mass;
     let effective_horizon = mass + sqrt(max(mass * mass - a * a, 0.0));
+    let effective_horizon_sq = effective_horizon * effective_horizon;
     let up_vector = vec3<f32>(0.0, 1.0, 0.0);
     let rs_factor = 1.5 * rs;
     let frame_drag_factor = (spin * spin) * rs * rs * 0.5;
@@ -89,16 +91,16 @@ fn trace_ray(start_pos: vec3<f32>, ray_dir: vec3<f32>, mass: f32, max_steps: i32
     for (var i = 0; i < max_steps; i++) {
         let to_bh = bh_pos - pos;
         let r_sq = dot(to_bh, to_bh);
-        let r = sqrt(r_sq);
 
-        let step_size = clamp(r * 0.1, 0.005, 0.2);
+        let step_size = clamp(sqrt(r_sq) * 0.1, 0.005, 0.2);
         
-        // Keep efficient branching for event horizon check
-        if (r <= effective_horizon) {
+        // Efficient horizon check using squared distance
+        if (r_sq <= effective_horizon_sq) {
             return vec3<f32>(0.0, 0.0, 0.0);
         }
 
-        // Optimize acceleration calculations
+        // Optimize acceleration calculations with reduced sqrt calls
+        let r = sqrt(r_sq);
         let r_cubed = r_sq * r;
         let base_accel = to_bh * rs_factor / r_cubed;
         
@@ -111,9 +113,9 @@ fn trace_ray(start_pos: vec3<f32>, ray_dir: vec3<f32>, mass: f32, max_steps: i32
         dir = normalize(dir + total_accel * step_size);
         pos += dir * step_size;
         
-        // Keep efficient escape check with precomputed distance
-        let new_r = length(bh_pos - pos);
-        if (new_r > escape_distance) {
+        // Use squared distance comparison to avoid sqrt
+        let new_r_sq = dot(bh_pos - pos, bh_pos - pos);
+        if (new_r_sq > escape_distance_sq) {
             return sample_environment(dir);
         }
     }
@@ -197,26 +199,24 @@ fn sample_environment(dir: vec3<f32>) -> vec3<f32> {
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let screen_pos = (in.tex_coords - 0.5) * 2.0;
     
-    // Precompute constants
-    let fov_scale = tan(camera.fovy * 0.5 * 0.017453292); // pi/180 precomputed
-    let aspect_fov = camera.aspect_ratio * fov_scale;
+    // Use matrix-based ray generation like reference shader
+    let fov_scale = tan(camera.fovy * 0.5 * 0.017453292);
     
-    let ray_dir_camera_space = vec3<f32>(
-        screen_pos.x * aspect_fov,
+    // Create camera rotation matrix from basis vectors
+    let camera_rotation = mat3x3<f32>(
+        camera.camera_right,
+        camera.camera_up, 
+        camera.camera_forward
+    );
+    
+    // Generate ray direction using matrix multiplication
+    let ray_dir_camera = vec3<f32>(
+        screen_pos.x * camera.aspect_ratio * fov_scale,
         screen_pos.y * fov_scale,
         -1.0
     );
     
-    // Cache camera vectors for better memory access
-    let cam_right = camera.camera_right;
-    let cam_up = camera.camera_up;
-    let cam_forward = camera.camera_forward;
-    
-    let ray_dir = normalize(
-        ray_dir_camera_space.x * cam_right +
-        ray_dir_camera_space.y * cam_up +
-        ray_dir_camera_space.z * cam_forward
-    );
+    let ray_dir = normalize(camera_rotation * ray_dir_camera);
     
     let color = trace_ray(camera.camera_pos, ray_dir, black_hole.mass, i32(black_hole.ray_steps));
     

@@ -23,10 +23,16 @@ var<uniform> camera: CameraUniform;
 
 struct BlackHoleUniform {
     position: vec3<f32>,
+    _padding1: f32,
     mass: f32,
     spin: f32,
     ray_steps: f32,
-    _padding: vec2<f32>,
+    schwarzschild_radius: f32,
+    effective_horizon: f32,
+    effective_horizon_sq: f32,
+    frame_drag_coefficient: f32,
+    escape_distance_sq: f32,
+    _padding2: vec4<f32>,
 };
 @group(1) @binding(0)
 var<uniform> black_hole: BlackHoleUniform;
@@ -75,18 +81,13 @@ fn trace_ray(start_pos: vec3<f32>, ray_dir: vec3<f32>, mass: f32, max_steps: i32
     var pos = start_pos;
     var dir = normalize(ray_dir);
     let bh_pos = black_hole.position;
-    let rs = schwarzschild_radius(mass);
-    let spin = black_hole.spin;
     
-    // Precompute constants outside loop
-    let escape_distance = 200.0 * mass;
-    let escape_distance_sq = escape_distance * escape_distance;
-    let a = spin * mass;
-    let effective_horizon = mass + sqrt(max(mass * mass - a * a, 0.0));
-    let effective_horizon_sq = effective_horizon * effective_horizon;
+    // Use precomputed constants from uniform buffer
+    let effective_horizon_sq = black_hole.effective_horizon_sq;
+    let escape_distance_sq = black_hole.escape_distance_sq;
+    let frame_drag_coefficient = black_hole.frame_drag_coefficient;
+    let rs_factor = 1.5 * black_hole.schwarzschild_radius;
     let up_vector = vec3<f32>(0.0, 1.0, 0.0);
-    let rs_factor = 1.5 * rs;
-    let frame_drag_factor = (spin * spin) * rs * rs * 0.5;
 
     for (var i = 0; i < max_steps; i++) {
         let to_bh = bh_pos - pos;
@@ -106,7 +107,7 @@ fn trace_ray(start_pos: vec3<f32>, ray_dir: vec3<f32>, mass: f32, max_steps: i32
         
         let tangential = cross(up_vector, to_bh);
         let tangential_normalized = normalize(tangential);
-        let frame_drag_accel = tangential_normalized * frame_drag_factor / (r_sq * r_sq);
+        let frame_drag_accel = tangential_normalized * frame_drag_coefficient / (r_sq * r_sq);
         
         let total_accel = base_accel + frame_drag_accel;
         

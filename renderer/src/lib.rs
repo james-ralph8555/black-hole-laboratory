@@ -52,14 +52,26 @@ use profiler::Profiler;
 struct BlackHoleUniform {
     /// Position of black hole in world space
     position: [f32; 3],
+    /// Padding after vec3 for WGSL alignment
+    _padding1: f32,
     /// Mass of black hole
     mass: f32,
     /// Spin parameter (dimensionless)
     spin: f32,
     /// Ray marching steps
     ray_steps: f32,
-    /// Padding for WGSL alignment
-    _padding: [f32; 6],
+    /// Precomputed Schwarzschild radius (2 * mass)
+    schwarzschild_radius: f32,
+    /// Precomputed effective horizon for Kerr black hole
+    effective_horizon: f32,
+    /// Precomputed effective horizon squared
+    effective_horizon_sq: f32,
+    /// Precomputed frame drag coefficient
+    frame_drag_coefficient: f32,
+    /// Precomputed escape distance squared
+    escape_distance_sq: f32,
+    /// Final padding to align struct to 64 bytes
+    _padding2: [f32; 4],
 }
 
 #[repr(C)]
@@ -299,13 +311,27 @@ impl<'a> State<'a> {
         let debug_spin = black_hole.spin;
         let debug_ray_steps = 250.0;
 
-        // Create black hole uniform
+        // Create black hole uniform with precomputed constants
+        let schwarzschild_radius = 2.0 * debug_mass;
+        let a = debug_spin * debug_mass;
+        let effective_horizon = debug_mass + (debug_mass * debug_mass - a * a).max(0.0).sqrt();
+        let effective_horizon_sq = effective_horizon * effective_horizon;
+        let frame_drag_coefficient = (debug_spin * debug_spin) * schwarzschild_radius * schwarzschild_radius * 0.5;
+        let escape_distance = 200.0 * debug_mass;
+        let escape_distance_sq = escape_distance * escape_distance;
+        
         let black_hole_uniform = BlackHoleUniform {
             position: [0.0, 0.0, 0.0], // Centered at origin
+            _padding1: 0.0,
             mass: debug_mass,
             spin: debug_spin,
             ray_steps: debug_ray_steps,
-            _padding: [0.0; 6],
+            schwarzschild_radius,
+            effective_horizon,
+            effective_horizon_sq,
+            frame_drag_coefficient,
+            escape_distance_sq,
+            _padding2: [0.0; 4],
         };
 
         let black_hole_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -636,10 +662,25 @@ impl<'a> State<'a> {
             }
         }
 
-        // Update black hole uniform with debug parameters
+        // Update black hole uniform with debug parameters and recompute constants
         self.black_hole_uniform.mass = self.debug_mass;
         self.black_hole_uniform.spin = self.debug_spin;
         self.black_hole_uniform.ray_steps = self.debug_ray_steps;
+        
+        // Recompute precomputed constants when parameters change
+        let schwarzschild_radius = 2.0 * self.debug_mass;
+        let a = self.debug_spin * self.debug_mass;
+        let effective_horizon = self.debug_mass + (self.debug_mass * self.debug_mass - a * a).max(0.0).sqrt();
+        let effective_horizon_sq = effective_horizon * effective_horizon;
+        let frame_drag_coefficient = (self.debug_spin * self.debug_spin) * schwarzschild_radius * schwarzschild_radius * 0.5;
+        let escape_distance = 200.0 * self.debug_mass;
+        let escape_distance_sq = escape_distance * escape_distance;
+        
+        self.black_hole_uniform.schwarzschild_radius = schwarzschild_radius;
+        self.black_hole_uniform.effective_horizon = effective_horizon;
+        self.black_hole_uniform.effective_horizon_sq = effective_horizon_sq;
+        self.black_hole_uniform.frame_drag_coefficient = frame_drag_coefficient;
+        self.black_hole_uniform.escape_distance_sq = escape_distance_sq;
 
         // Update HTML help overlay for WASM
         #[cfg(target_arch = "wasm32")]

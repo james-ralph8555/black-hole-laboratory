@@ -77,59 +77,47 @@ fn trace_ray(start_pos: vec3<f32>, ray_dir: vec3<f32>, mass: f32, max_steps: i32
     let bh_pos = black_hole.position;
     let rs = schwarzschild_radius(mass);
     let spin = black_hole.spin;
+    
+    // Precompute constants outside loop
+    let escape_distance = 200.0 * mass;
+    let a = spin * mass;
+    let effective_horizon = mass + sqrt(max(mass * mass - a * a, 0.0));
+    let up_vector = vec3<f32>(0.0, 1.0, 0.0);
+    let rs_factor = 1.5 * rs;
+    let frame_drag_factor = (spin * spin) * rs * rs * 0.5;
 
     for (var i = 0; i < max_steps; i++) {
         let to_bh = bh_pos - pos;
         let r_sq = dot(to_bh, to_bh);
         let r = sqrt(r_sq);
 
-        // Adaptive Step Size (More accurate near the black hole)
-        // This makes bigger jumps when far away and smaller, precise steps when close.
         let step_size = clamp(r * 0.1, 0.005, 0.2);
-
-        // Calculate effective event horizon radius for Kerr black hole
-        // For a Kerr black hole: r_horizon = M + sqrt(M^2 - a^2) where a = spin * M
-        let a = spin * mass; // Spin parameter
-        let effective_horizon = mass + sqrt(max(mass * mass - a * a, 0.0));
         
-        // Check if we hit the event horizon
+        // Keep efficient branching for event horizon check
         if (r <= effective_horizon) {
-            return vec3<f32>(0.0, 0.0, 0.0); // Absorbed by the black hole
+            return vec3<f32>(0.0, 0.0, 0.0);
         }
 
-        // REMOVED: Premature escape check that was causing "blip" at 50 units
-        // The ray tracing should continue regardless of camera distance
-
-        // Basic Kerr gravitational acceleration with frame-dragging effect
-        let base_accel = to_bh * 1.5 * rs / (r_sq * r);
+        // Optimize acceleration calculations
+        let r_cubed = r_sq * r;
+        let base_accel = to_bh * rs_factor / r_cubed;
         
-        // Add frame-dragging effect for spinning black holes
-        // This is a simplified approximation of the Lense-Thirring effect
-        let up_vector = vec3<f32>(0.0, 1.0, 0.0); // Spin axis
         let tangential = cross(up_vector, to_bh);
         let tangential_normalized = normalize(tangential);
-        
-        // Frame-dragging strength increases with spin and decreases with distance
-        let frame_drag_strength = (spin * spin) * rs * rs / (r_sq * r_sq);
-        let frame_drag_accel = tangential_normalized * frame_drag_strength * 0.5;
+        let frame_drag_accel = tangential_normalized * frame_drag_factor / (r_sq * r_sq);
         
         let total_accel = base_accel + frame_drag_accel;
         
-        // Apply the change in direction
         dir = normalize(dir + total_accel * step_size);
-
-        // Move the ray
         pos += dir * step_size;
         
-        // Check if ray has traveled far enough to be considered "escaped"
-        // Only check this AFTER the ray has moved, not at the starting position
+        // Keep efficient escape check with precomputed distance
         let new_r = length(bh_pos - pos);
-        if (new_r > 200.0 * mass) {
+        if (new_r > escape_distance) {
             return sample_environment(dir);
         }
     }
 
-    // If we ran out of steps, assume the ray escaped
     return sample_environment(dir);
 }
 
@@ -207,29 +195,30 @@ fn sample_environment(dir: vec3<f32>) -> vec3<f32> {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    // Convert screen coordinates to normalized device coordinates
     let screen_pos = (in.tex_coords - 0.5) * 2.0;
     
-    // Generate ray direction using camera basis vectors
-    // This creates proper perspective projection for ray tracing
-    let fov_scale = tan(camera.fovy * 0.5 * 3.14159 / 180.0); // Use dynamic FOV from camera
+    // Precompute constants
+    let fov_scale = tan(camera.fovy * 0.5 * 0.017453292); // pi/180 precomputed
+    let aspect_fov = camera.aspect_ratio * fov_scale;
     
     let ray_dir_camera_space = vec3<f32>(
-        screen_pos.x * camera.aspect_ratio * fov_scale,
+        screen_pos.x * aspect_fov,
         screen_pos.y * fov_scale,
         -1.0
     );
     
-    // Transform ray direction to world space using camera vectors
+    // Cache camera vectors for better memory access
+    let cam_right = camera.camera_right;
+    let cam_up = camera.camera_up;
+    let cam_forward = camera.camera_forward;
+    
     let ray_dir = normalize(
-        ray_dir_camera_space.x * camera.camera_right +
-        ray_dir_camera_space.y * camera.camera_up +
-        ray_dir_camera_space.z * camera.camera_forward
+        ray_dir_camera_space.x * cam_right +
+        ray_dir_camera_space.y * cam_up +
+        ray_dir_camera_space.z * cam_forward
     );
     
-    // Trace the ray through spacetime from camera position
-    // Use configurable ray marching steps
-    var color = trace_ray(camera.camera_pos, ray_dir, black_hole.mass, i32(black_hole.ray_steps));
+    let color = trace_ray(camera.camera_pos, ray_dir, black_hole.mass, i32(black_hole.ray_steps));
     
     return vec4<f32>(color, 1.0);
 }

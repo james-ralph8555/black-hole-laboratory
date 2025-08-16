@@ -27,7 +27,7 @@ module.exports = (env, argv) => {
         patterns: [
             path.resolve(__dirname, "index.html"),
             path.resolve(__dirname, "favicon.ico"),
-            path.resolve(__dirname, "icon.png")
+            path.resolve(__dirname, "icon-180.png")
         ]
     }),
 

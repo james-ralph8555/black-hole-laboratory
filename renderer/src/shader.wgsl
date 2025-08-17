@@ -22,20 +22,21 @@ struct CameraUniform {
 var<uniform> camera: CameraUniform;
 
 struct BlackHoleUniform {
-    position: vec3<f32>,
-    _padding1: f32,
-    mass: f32,
-    spin: f32,
-    ray_steps: f32,
-    schwarzschild_radius: f32,
-    effective_horizon: f32,
-    effective_horizon_sq: f32,
-    frame_drag_coefficient: f32,
-    escape_distance_sq: f32,
-    disk_inner_radius: f32,
-    disk_outer_radius: f32,
-    disk_temperature: f32,
-    disk_opacity: f32,
+    position: vec4<f32>,           // 16 bytes (using vec4 for proper alignment)
+    mass: f32,                     // 4 bytes  
+    spin: f32,                     // 4 bytes
+    ray_steps: f32,                // 4 bytes
+    schwarzschild_radius: f32,     // 4 bytes
+    effective_horizon: f32,        // 4 bytes 
+    effective_horizon_sq: f32,     // 4 bytes
+    frame_drag_coefficient: f32,   // 4 bytes
+    escape_distance_sq: f32,       // 4 bytes
+    disk_inner_radius: f32,        // 4 bytes
+    disk_outer_radius: f32,        // 4 bytes
+    disk_temperature: f32,         // 4 bytes
+    disk_opacity: f32,             // 4 bytes
+    time: f32,                     // 4 bytes
+    _padding: f32,                 // 4 bytes padding for alignment
 };
 @group(1) @binding(0)
 var<uniform> black_hole: BlackHoleUniform;
@@ -84,11 +85,63 @@ fn get_disk_color() -> vec3<f32> {
     return vec3<f32>(0.8, 0.4, 0.1); // Dark orange
 }
 
+// Noise functions for Brownian motion
+fn hash(p: vec2<f32>) -> f32 {
+    var p3 = fract(vec3<f32>(p.xyx) * 0.13);
+    p3 += dot(p3, p3.yzx + 3.333);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+fn noise(p: vec2<f32>) -> f32 {
+    let i = floor(p);
+    let f = fract(p);
+    let u = f * f * (3.0 - 2.0 * f);
+    
+    return mix(
+        mix(hash(i + vec2<f32>(0.0, 0.0)), 
+            hash(i + vec2<f32>(1.0, 0.0)), u.x),
+        mix(hash(i + vec2<f32>(0.0, 1.0)), 
+            hash(i + vec2<f32>(1.0, 1.0)), u.x), u.y);
+}
+
+// Create orbital matter streams based on Keplerian motion
+fn orbital_matter_pattern(hit_point: vec3<f32>, radius: f32, time: f32) -> f32 {
+    // Convert to polar coordinates in disk plane
+    let angle = atan2(hit_point.z, hit_point.x);
+    
+    // Keplerian orbital velocity (faster closer to black hole)
+    let orbital_freq = 1.0 / pow(radius, 1.5); // Kepler's third law approximation
+    let orbital_angle = angle + time * orbital_freq * 2.0; // Faster rotation
+    
+    // Create concentric rings based on RADIUS (not angle)
+    let ring_frequency = 15.0; // Number of concentric rings
+    let ring_pattern = sin(radius * ring_frequency);
+    
+    // Add orbital streaming within each ring
+    let orbital_streams = 25.0; // Streams flowing around each ring
+    let stream_pattern = sin(orbital_angle * orbital_streams);
+    
+    // Combine rings with orbital flow
+    let base_pattern = ring_pattern * 0.8 + stream_pattern * 0.2;
+    
+    // Add turbulence that varies with both radius and orbital position
+    let turbulence_coords = vec2<f32>(
+        orbital_angle * 3.0,
+        radius * 4.0
+    );
+    let turbulence = noise(turbulence_coords + vec2<f32>(time * 0.8, 0.0));
+    
+    // Create matter density
+    let matter_density = smoothstep(-0.1, 0.3, base_pattern + turbulence * 0.4);
+    
+    return matter_density;
+}
+
 // Calculate ray-disk intersection (simple flat disk)
 fn intersect_disk(ray_pos: vec3<f32>, ray_dir: vec3<f32>) -> vec2<f32> {
     // Disk is in the x-z plane (y = 0)
     let disk_normal = vec3<f32>(0.0, 1.0, 0.0);
-    let disk_center = black_hole.position;
+    let disk_center = black_hole.position.xyz;
     
     let denom = dot(ray_dir, disk_normal);
     
@@ -120,27 +173,60 @@ fn calculate_disk_emission(radius: f32, view_dir: vec3<f32>, hit_point: vec3<f32
     let inner_r = black_hole.disk_inner_radius;
     let outer_r = black_hole.disk_outer_radius;
     
-    // Brightness profile - brighter closer to black hole
+    // Get matter density from orbital pattern
+    let matter_density = orbital_matter_pattern(hit_point, radius, black_hole.time);
+    
+    // If there's no matter here, return black (transparent)
+    if (matter_density < 0.1) {
+        return vec3<f32>(0.0, 0.0, 0.0);
+    }
+    
+    // Brightness profile - brighter closer to black hole (temperature gradient)
     let r_norm = (radius - inner_r) / (outer_r - inner_r);
-    let brightness = 1.0 - 0.4 * r_norm;
+    let temperature_brightness = 1.0 - 0.8 * r_norm; // Increased falloff to push outer edge cooler
     
-    // Base color - dark orange
-    var color = get_disk_color();
+    // Smooth temperature gradient from white (hot inner) to red-orange (cool outer)
+    // Create smooth interpolation across the full radius range
+    let temp_factor = clamp(temperature_brightness, 0.0, 1.0);
     
-    // Distance-based intensity 
-    let intensity = brightness * 0.8;
+    // Define key temperature colors for smooth interpolation
+    let hot_white = vec3<f32>(1.0, 1.0, 1.0);        // Hottest - pure white
+    let hot_yellow = vec3<f32>(1.0, 0.95, 0.7);      // Very hot - white-yellow
+    let warm_orange = vec3<f32>(1.0, 0.7, 0.3);      // Hot - orange-yellow
+    let cool_orange = vec3<f32>(1.0, 0.5, 0.15);     // Medium - orange
+    let cool_red = vec3<f32>(0.9, 0.3, 0.1);         // Cool - red-orange
     
-    // Add some turbulence for realism
-    let turbulence = 0.7 + 0.3 * sin(radius * 6.0 + hit_point.x * 2.0) * sin(hit_point.z * 3.0);
+    // Smooth interpolation across temperature range
+    var color: vec3<f32>;
+    if (temp_factor > 0.8) {
+        // Hottest regions: white to yellow
+        let blend = (temp_factor - 0.8) / 0.2;
+        color = mix(hot_yellow, hot_white, blend);
+    } else if (temp_factor > 0.6) {
+        // Hot regions: yellow to orange-yellow
+        let blend = (temp_factor - 0.6) / 0.2;
+        color = mix(warm_orange, hot_yellow, blend);
+    } else if (temp_factor > 0.4) {
+        // Medium regions: orange-yellow to orange
+        let blend = (temp_factor - 0.4) / 0.2;
+        color = mix(cool_orange, warm_orange, blend);
+    } else {
+        // Cool regions: orange to red-orange
+        let blend = clamp(temp_factor / 0.4, 0.0, 1.0);
+        color = mix(cool_red, cool_orange, blend);
+    }
     
-    return color * intensity * turbulence;
+    // Combine temperature brightness with matter density
+    let final_intensity = temperature_brightness * matter_density * 0.9;
+    
+    return color * final_intensity;
 }
 
 // Relativistic geodesic ray tracing using Kerr metric approximation
 fn trace_ray(start_pos: vec3<f32>, ray_dir: vec3<f32>, mass: f32, max_steps: i32) -> vec3<f32> {
     var pos = start_pos;
     var dir = normalize(ray_dir);
-    let bh_pos = black_hole.position;
+    let bh_pos = black_hole.position.xyz;
     
     // Use precomputed constants from uniform buffer
     let effective_horizon_sq = black_hole.effective_horizon_sq;

@@ -10,6 +10,7 @@ A real-time black hole visualization built with Rust and WebGPU. This applicatio
 - ✅ **Real-Time Ray Tracing** - GPU-accelerated ray deflection through simplified gravitational model
 - ✅ **Frame-Dragging Approximation** - Basic tangential effects from spinning black holes
 - ✅ **Gravitational Lensing** - Visual distortion of background starfield
+- ✅ **Animated Accretion Disk** - Orbital matter streams with realistic temperature gradient
 - ✅ **Interactive Debug Controls** - Real-time sliders for FOV, mass, spin, and ray steps
 - ✅ **Performance Profiling** - High-precision timing with DWARF debug symbols for flame graphs
 - ✅ **Cross-Platform** - Runs natively and in web browsers via WebAssembly
@@ -80,6 +81,7 @@ The visualization currently implements a simplified gravitational model with:
 - **Frame-Dragging Approximation**: Simplified tangential acceleration based on spin
 - **Gravitational Deflection**: Basic radial acceleration toward black hole center
 - **Cartesian Coordinates**: Simple 3D space without relativistic coordinate systems
+- **Orbital Accretion Disk**: Matter streams following Keplerian orbits with realistic temperature gradient
 
 ### Ray Tracing Method
 - **Simplified Integration**: Basic Euler integration with adaptive step sizes in shader
@@ -216,11 +218,11 @@ Enable profiling with the **P** key to monitor performance bottlenecks and optim
 
 The current implementation provides a solid foundation with simplified physics. The roadmap focuses on transitioning to the sophisticated physics implementations already present in the simulation crate:
 
-### Physically-Based Accretion Disk
-- **Shakura-Sunyaev Model**: Replace visual placeholder with physically-motivated accretion disk
-- **Novikov-Thorne Temperature Profile**: Calculate realistic disk temperature based on orbital dynamics
-- **ISCO-Dependent Structure**: Inner disk edge determined by spin-dependent Innermost Stable Circular Orbit
-- **Efficient Ray-Disk Intersection**: Optimized algorithms for real-time performance
+### Enhanced Accretion Disk Physics
+- **Shakura-Sunyaev Model**: Upgrade from current visual model to full physically-motivated disk
+- **Novikov-Thorne Temperature Profile**: Enhance current temperature gradient with precise orbital dynamics
+- **ISCO-Dependent Structure**: Make inner disk edge dynamically respond to black hole spin
+- **3D Disk Structure**: Add realistic disk thickness and vertical temperature distribution
 
 ### Advanced Relativistic Effects
 - **General Relativistic Magnetohydrodynamics (GRMHD)**: Model plasma and magnetic field dynamics

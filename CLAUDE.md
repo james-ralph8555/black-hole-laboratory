@@ -122,3 +122,30 @@ The codebase is designed for extensibility. The future roadmap focuses on transi
     - Enhance GPU acceleration by optimizing the integration of proper relativistic calculations with shader performance.
     - Utilize **precomputation** for performance-critical calculations, such as ray deflection tables, disk intersection lookups, and color transformations for Doppler effects.
     - Balance the sophisticated physics calculations from the simulation crate with real-time shader performance requirements.
+
+## WGPU Shader Uniform Buffer Alignment
+
+When working with uniform buffers in WGPU, strict alignment rules must be followed to avoid validation errors.
+
+### Key Rules
+- **vec3<f32>** requires 16-byte alignment (use vec4<f32> or add padding)
+- **vec4<f32>** is naturally 16-byte aligned
+- **f32** requires 4-byte alignment
+- Struct alignment = maximum alignment of its members
+
+### Best Practices
+1. **Avoid changing both sides**: When fixing alignment issues, either update the Rust struct OR the WGSL struct, never both simultaneously
+2. **Test incrementally**: Build and test after each change to avoid cascading size mismatches
+3. **Use explicit padding**: Add `_padding: f32` fields for alignment rather than relying on implicit padding
+4. **Calculate sizes manually**: 
+   - vec4<f32> = 16 bytes
+   - f32 = 4 bytes  
+   - Struct size must be multiple of largest member alignment
+
+### Common Issues
+- "Buffer is bound with size X where shader expects Y" indicates size mismatch
+- Changing WGSL struct without updating Rust struct (or vice versa) breaks alignment
+- Using vec3<f32> without proper 16-byte alignment causes validation errors
+
+### Resources
+- [Learn WGPU Alignment Guide](https://sotrh.github.io/learn-wgpu/showcase/alignment/)

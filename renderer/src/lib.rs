@@ -64,10 +64,8 @@ use profiler::Profiler;
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 struct BlackHoleUniform {
-    /// Position of black hole in world space
-    position: [f32; 3],
-    /// Padding after vec3 for WGSL alignment
-    _padding1: f32,
+    /// Position of black hole in world space (16-byte aligned)
+    position: [f32; 4], // Use 4 floats for proper vec3 alignment
     /// Mass of black hole
     mass: f32,
     /// Spin parameter (dimensionless)
@@ -92,6 +90,10 @@ struct BlackHoleUniform {
     disk_temperature: f32,
     /// Accretion disk opacity
     disk_opacity: f32,
+    /// Time for animation
+    time: f32,
+    /// Padding to reach exactly 80 bytes (shader expects 80)
+    _padding: [f32; 3],
 }
 
 #[repr(C)]
@@ -301,7 +303,7 @@ impl<'a> State<'a> {
         // Create camera with aspect ratio matching the actual window size
         // Start the camera at a good position to view the black hole
         let camera = Camera::new(
-            (0.0, 0.0, -40.0), // Start far back for better testing perspective
+            (0.0, -1.0, -40.0), // Start far back for better testing perspective
             (0.0, 0.0, 0.0),   // Look towards the black hole at origin
             cgmath::Vector3::unit_y(),
             width as f32 / height as f32, // Dynamic aspect ratio
@@ -376,8 +378,7 @@ impl<'a> State<'a> {
         let disk_opacity = 0.8;
 
         let black_hole_uniform = BlackHoleUniform {
-            position: [0.0, 0.0, 0.0], // Centered at origin
-            _padding1: 0.0,
+            position: [0.0, 0.0, 0.0, 0.0], // Centered at origin with padding
             mass: debug_mass,
             spin: debug_spin,
             ray_steps: debug_ray_steps,
@@ -390,6 +391,8 @@ impl<'a> State<'a> {
             disk_outer_radius,
             disk_temperature,
             disk_opacity,
+            time: 0.0,
+            _padding: [0.0; 3],
         };
 
         let black_hole_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -748,6 +751,15 @@ impl<'a> State<'a> {
         self.black_hole_uniform.escape_distance_sq = escape_distance_sq;
         self.black_hole_uniform.disk_inner_radius = disk_inner_radius;
         self.black_hole_uniform.disk_outer_radius = disk_outer_radius;
+        
+        // Update time for Brownian motion animation
+        cfg_if! {
+            if #[cfg(target_arch = "wasm32")] {
+                self.black_hole_uniform.time = (web_sys::window().unwrap().performance().unwrap().now() / 1000.0) as f32;
+            } else {
+                self.black_hole_uniform.time = self.last_render_time.elapsed().as_secs_f32();
+            }
+        }
 
         // Update HTML help overlay for WASM
         #[cfg(target_arch = "wasm32")]

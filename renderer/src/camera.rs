@@ -226,7 +226,7 @@ impl CameraController {
             fps: 0.0,
             last_fps_time: 0.0,
             // Camera reset functionality - will be set properly when camera is initialized
-            initial_position: Point3::new(0.0, 0.0, -40.0),
+            initial_position: Point3::new(0.0, -1.0, -40.0),
             initial_yaw,
             initial_pitch,
             reset_requested: false,

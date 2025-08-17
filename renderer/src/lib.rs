@@ -19,22 +19,36 @@ use wasm_bindgen::prelude::*;
 extern "C" {
     #[wasm_bindgen(js_name = toggleHelp)]
     fn js_toggle_help();
-    
+
     #[wasm_bindgen(js_name = setHelpVisible)]
     fn js_set_help_visible(visible: bool);
-    
+
     #[wasm_bindgen(js_name = updateDebugInfo)]
-    fn js_update_debug_info(position: &[f32], orientation: &[f32], last_key: &str, fps: f32, render_width: f32, render_height: f32, velocity: &[f32]);
-    
+    fn js_update_debug_info(
+        position: &[f32],
+        orientation: &[f32],
+        last_key: &str,
+        fps: f32,
+        render_width: f32,
+        render_height: f32,
+        velocity: &[f32],
+    );
+
     #[wasm_bindgen(js_name = updateProfilingInfo)]
-    fn js_update_profiling_info(cpu_time: f32, gpu_time: f32, update_time: f32, render_time: f32, gpu_supported: bool);
-    
+    fn js_update_profiling_info(
+        cpu_time: f32,
+        gpu_time: f32,
+        update_time: f32,
+        render_time: f32,
+        gpu_supported: bool,
+    );
+
     #[wasm_bindgen(js_name = updateFpsCounter)]
     fn js_update_fps_counter(fps: f32, visible: bool);
-    
+
     #[wasm_bindgen(js_name = setProfilingVisible)]
     fn js_set_profiling_visible(visible: bool);
-    
+
     #[wasm_bindgen(js_name = hideLoadingScreen)]
     fn js_hide_loading_screen();
 }
@@ -70,8 +84,14 @@ struct BlackHoleUniform {
     frame_drag_coefficient: f32,
     /// Precomputed escape distance squared
     escape_distance_sq: f32,
-    /// Final padding to align struct to 64 bytes
-    _padding2: [f32; 4],
+    /// Accretion disk inner radius
+    disk_inner_radius: f32,
+    /// Accretion disk outer radius
+    disk_outer_radius: f32,
+    /// Accretion disk temperature (Kelvin)
+    disk_temperature: f32,
+    /// Accretion disk opacity
+    disk_opacity: f32,
 }
 
 #[repr(C)]
@@ -98,12 +118,10 @@ impl Vertex {
                     shader_location: 1,
                     format: wgpu::VertexFormat::Float32x2,
                 },
-            ]
+            ],
         }
     }
 }
-
-
 
 struct State<'a> {
     surface: wgpu::Surface<'a>,
@@ -157,7 +175,7 @@ impl<'a> State<'a> {
 
         #[cfg(target_arch = "wasm32")]
         log::info!("Creating surface for window");
-        
+
         let surface = instance.create_surface(Arc::clone(&window)).unwrap();
 
         #[cfg(target_arch = "wasm32")]
@@ -178,7 +196,10 @@ impl<'a> State<'a> {
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
-                    required_features: if adapter.features().contains(wgpu::Features::TIMESTAMP_QUERY) {
+                    required_features: if adapter
+                        .features()
+                        .contains(wgpu::Features::TIMESTAMP_QUERY)
+                    {
                         wgpu::Features::TIMESTAMP_QUERY
                     } else {
                         wgpu::Features::empty()
@@ -192,10 +213,14 @@ impl<'a> State<'a> {
             .unwrap();
 
         #[cfg(target_arch = "wasm32")]
-        log::info!("Got device, configuring surface. Window size: {}x{}", size.width, size.height);
+        log::info!(
+            "Got device, configuring surface. Window size: {}x{}",
+            size.width,
+            size.height
+        );
 
         let surface_caps = surface.get_capabilities(&adapter);
-        
+
         // Be more defensive about surface format selection
         let surface_format = surface_caps
             .formats
@@ -210,7 +235,7 @@ impl<'a> State<'a> {
         let max_texture_size = limits.max_texture_dimension_2d;
         let width = size.width.max(1).min(max_texture_size);
         let height = size.height.max(1).min(max_texture_size);
-        
+
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
@@ -223,8 +248,15 @@ impl<'a> State<'a> {
         };
 
         #[cfg(target_arch = "wasm32")]
-        log::info!("Requested size: {}x{}, max texture size: {}, using: {}x{}, format: {:?}", 
-                   size.width, size.height, max_texture_size, width, height, surface_format);
+        log::info!(
+            "Requested size: {}x{}, max texture size: {}, using: {}x{}, format: {:?}",
+            size.width,
+            size.height,
+            max_texture_size,
+            width,
+            height,
+            surface_format
+        );
 
         surface.configure(&device, &config);
 
@@ -233,13 +265,25 @@ impl<'a> State<'a> {
 
         // Create full-screen quad for ray tracing
         let quad_vertices = vec![
-            Vertex { position: [-1.0, -1.0, 0.0], tex_coords: [0.0, 1.0] },
-            Vertex { position: [ 1.0, -1.0, 0.0], tex_coords: [1.0, 1.0] },
-            Vertex { position: [ 1.0,  1.0, 0.0], tex_coords: [1.0, 0.0] },
-            Vertex { position: [-1.0,  1.0, 0.0], tex_coords: [0.0, 0.0] },
+            Vertex {
+                position: [-1.0, -1.0, 0.0],
+                tex_coords: [0.0, 1.0],
+            },
+            Vertex {
+                position: [1.0, -1.0, 0.0],
+                tex_coords: [1.0, 1.0],
+            },
+            Vertex {
+                position: [1.0, 1.0, 0.0],
+                tex_coords: [1.0, 0.0],
+            },
+            Vertex {
+                position: [-1.0, 1.0, 0.0],
+                tex_coords: [0.0, 0.0],
+            },
         ];
         let quad_indices = vec![0u16, 1, 2, 0, 2, 3];
-        
+
         // Create vertex buffer
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
@@ -257,17 +301,24 @@ impl<'a> State<'a> {
         // Create camera with aspect ratio matching the actual window size
         // Start the camera at a good position to view the black hole
         let camera = Camera::new(
-            (0.0, 0.0, -40.0),  // Start far back for better testing perspective
+            (0.0, 0.0, -40.0), // Start far back for better testing perspective
             (0.0, 0.0, 0.0),   // Look towards the black hole at origin
             cgmath::Vector3::unit_y(),
-            width as f32 / height as f32,  // Dynamic aspect ratio
+            width as f32 / height as f32, // Dynamic aspect ratio
             80.0,
             0.1,
-            1000.0,  // Increase far plane for space exploration
+            1000.0, // Increase far plane for space exploration
         );
 
         let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_proj_with_resolution(&camera, true, false, false, width as f32, height as f32); // Default: stars on, grid off, help off (flash message instead)
+        camera_uniform.update_view_proj_with_resolution(
+            &camera,
+            true,
+            false,
+            false,
+            width as f32,
+            height as f32,
+        ); // Default: stars on, grid off, help off (flash message instead)
 
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
@@ -275,9 +326,9 @@ impl<'a> State<'a> {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        let camera_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
+        let camera_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
@@ -286,19 +337,16 @@ impl<'a> State<'a> {
                         min_binding_size: None,
                     },
                     count: None,
-                }
-            ],
-            label: Some("camera_bind_group_layout"),
-        });
+                }],
+                label: Some("camera_bind_group_layout"),
+            });
 
         let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &camera_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: camera_buffer.as_entire_binding(),
-                }
-            ],
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
             label: Some("camera_bind_group"),
         });
 
@@ -316,10 +364,17 @@ impl<'a> State<'a> {
         let a = debug_spin * debug_mass;
         let effective_horizon = debug_mass + (debug_mass * debug_mass - a * a).max(0.0).sqrt();
         let effective_horizon_sq = effective_horizon * effective_horizon;
-        let frame_drag_coefficient = (debug_spin * debug_spin) * schwarzschild_radius * schwarzschild_radius * 0.5;
+        let frame_drag_coefficient =
+            (debug_spin * debug_spin) * schwarzschild_radius * schwarzschild_radius * 0.5;
         let escape_distance = 200.0 * debug_mass;
         let escape_distance_sq = escape_distance * escape_distance;
-        
+
+        // Accretion disk parameters
+        let disk_inner_radius = 3.0 * schwarzschild_radius; // ISCO for Schwarzschild
+        let disk_outer_radius = 5.5 * schwarzschild_radius; // Half the width (was 8.0, now 5.5)
+        let disk_temperature = 10000.0; // Kelvin - hot enough to glow blue-white
+        let disk_opacity = 0.8;
+
         let black_hole_uniform = BlackHoleUniform {
             position: [0.0, 0.0, 0.0], // Centered at origin
             _padding1: 0.0,
@@ -331,7 +386,10 @@ impl<'a> State<'a> {
             effective_horizon_sq,
             frame_drag_coefficient,
             escape_distance_sq,
-            _padding2: [0.0; 4],
+            disk_inner_radius,
+            disk_outer_radius,
+            disk_temperature,
+            disk_opacity,
         };
 
         let black_hole_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -340,9 +398,9 @@ impl<'a> State<'a> {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        let black_hole_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
+        let black_hole_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
@@ -351,19 +409,16 @@ impl<'a> State<'a> {
                         min_binding_size: None,
                     },
                     count: None,
-                }
-            ],
-            label: Some("black_hole_bind_group_layout"),
-        });
+                }],
+                label: Some("black_hole_bind_group_layout"),
+            });
 
         let black_hole_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &black_hole_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: black_hole_buffer.as_entire_binding(),
-                }
-            ],
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: black_hole_buffer.as_entire_binding(),
+            }],
             label: Some("black_hole_bind_group"),
         });
 
@@ -375,8 +430,11 @@ impl<'a> State<'a> {
         // The milkyway.jpg is typically 6000px wide, so we check for that capability.
         let sky_texture = if limits.max_texture_dimension_2d >= 6000 {
             #[cfg(target_arch = "wasm32")]
-            log::info!("Device supports high-res texture (limit: {}px).", limits.max_texture_dimension_2d);
-            
+            log::info!(
+                "Device supports high-res texture (limit: {}px).",
+                limits.max_texture_dimension_2d
+            );
+
             let sky_bytes = include_bytes!("milkyway.jpg");
             texture::Texture::from_bytes(&device, &queue, sky_bytes, "milkyway.jpg").unwrap()
         } else {
@@ -385,9 +443,9 @@ impl<'a> State<'a> {
                 "Device max texture size ({}) is less than required (6000px). Falling back to procedural stars.",
                 limits.max_texture_dimension_2d
             );
-            
+
             // Set mode to procedural stars (1)
-            background_mode = 1; 
+            background_mode = 1;
             // Create a dummy 1x1 texture to satisfy the render pipeline
             texture::Texture::create_1x1_black_pixel(&device, &queue, "fallback_texture").unwrap()
         };
@@ -514,8 +572,8 @@ impl<'a> State<'a> {
             camera_bind_group,
             camera_controller,
             black_hole,
-            last_help_state: false,  // Match camera_controller.show_help initial state
-            last_profiling_state: false,  // Match camera_controller.show_profiling initial state
+            last_help_state: false, // Match camera_controller.show_help initial state
+            last_profiling_state: false, // Match camera_controller.show_profiling initial state
             black_hole_uniform,
             black_hole_buffer,
             black_hole_bind_group,
@@ -560,7 +618,7 @@ impl<'a> State<'a> {
                         _ => {}
                     }
                 }
-                
+
                 if let PhysicalKey::Code(key) = *physical_key {
                     self.camera_controller.process_keyboard(key, *state)
                 } else {
@@ -599,19 +657,20 @@ impl<'a> State<'a> {
             let max_texture_size = limits.max_texture_dimension_2d;
             let width = new_size.width.max(1).min(max_texture_size);
             let height = new_size.height.max(1).min(max_texture_size);
-            
+
             self.config.width = width;
             self.config.height = height;
             self.surface.configure(&self.device, &self.config);
-            
+
             // Update camera aspect ratio to match new window dimensions
-            self.camera.update_aspect_ratio(width as f32 / height as f32);
+            self.camera
+                .update_aspect_ratio(width as f32 / height as f32);
         }
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         self.profiler.begin_frame();
-        
+
         self.profiler.begin_update();
         cfg_if! {
             if #[cfg(target_arch = "wasm32")] {
@@ -633,12 +692,12 @@ impl<'a> State<'a> {
         // Update camera uniform with toggle states and current resolution
         let show_stars = self.background_mode != 2;
         self.camera_uniform.update_view_proj_with_resolution(
-            &self.camera, 
-            show_stars, 
-            self.camera_controller.show_grid, 
+            &self.camera,
+            show_stars,
+            self.camera_controller.show_grid,
             self.camera_controller.show_help,
             self.config.width as f32,
-            self.config.height as f32
+            self.config.height as f32,
         );
         self.camera_uniform.background_mode = if self.background_mode == 1 { 1.0 } else { 0.0 };
 
@@ -652,7 +711,7 @@ impl<'a> State<'a> {
                         self.debug_mass = params.mass;
                         self.debug_spin = params.spin;
                         self.debug_ray_steps = params.ray_steps;
-                        
+
                         // Update camera FOV if it changed
                         if (self.camera.fovy - self.debug_fov).abs() > 0.001 {
                             self.update_camera_fov();
@@ -666,21 +725,29 @@ impl<'a> State<'a> {
         self.black_hole_uniform.mass = self.debug_mass;
         self.black_hole_uniform.spin = self.debug_spin;
         self.black_hole_uniform.ray_steps = self.debug_ray_steps;
-        
+
         // Recompute precomputed constants when parameters change
         let schwarzschild_radius = 2.0 * self.debug_mass;
         let a = self.debug_spin * self.debug_mass;
-        let effective_horizon = self.debug_mass + (self.debug_mass * self.debug_mass - a * a).max(0.0).sqrt();
+        let effective_horizon =
+            self.debug_mass + (self.debug_mass * self.debug_mass - a * a).max(0.0).sqrt();
         let effective_horizon_sq = effective_horizon * effective_horizon;
-        let frame_drag_coefficient = (self.debug_spin * self.debug_spin) * schwarzschild_radius * schwarzschild_radius * 0.5;
+        let frame_drag_coefficient =
+            (self.debug_spin * self.debug_spin) * schwarzschild_radius * schwarzschild_radius * 0.5;
         let escape_distance = 200.0 * self.debug_mass;
         let escape_distance_sq = escape_distance * escape_distance;
-        
+
+        // Update disk parameters based on current mass
+        let disk_inner_radius = 3.0 * schwarzschild_radius; // ISCO for Schwarzschild
+        let disk_outer_radius = 5.5 * schwarzschild_radius; // Half the width (was 8.0, now 5.5)
+
         self.black_hole_uniform.schwarzschild_radius = schwarzschild_radius;
         self.black_hole_uniform.effective_horizon = effective_horizon;
         self.black_hole_uniform.effective_horizon_sq = effective_horizon_sq;
         self.black_hole_uniform.frame_drag_coefficient = frame_drag_coefficient;
         self.black_hole_uniform.escape_distance_sq = escape_distance_sq;
+        self.black_hole_uniform.disk_inner_radius = disk_inner_radius;
+        self.black_hole_uniform.disk_outer_radius = disk_outer_radius;
 
         // Update HTML help overlay for WASM
         #[cfg(target_arch = "wasm32")]
@@ -690,25 +757,39 @@ impl<'a> State<'a> {
                 self.last_help_state = self.camera_controller.show_help;
                 js_set_help_visible(self.camera_controller.show_help);
             }
-            
+
             // Update profiling overlay when state changes
             if self.camera_controller.show_profiling != self.last_profiling_state {
                 self.last_profiling_state = self.camera_controller.show_profiling;
                 js_set_profiling_visible(self.camera_controller.show_profiling);
             }
-            
+
             // Update debug info continuously when help is visible
             if self.camera_controller.show_help {
                 let position = [self.camera.eye.x, self.camera.eye.y, self.camera.eye.z];
                 let orientation = [self.camera_controller.yaw, self.camera_controller.pitch];
-                let velocity = [self.camera_controller.current_velocity.x, self.camera_controller.current_velocity.y, self.camera_controller.current_velocity.z];
-                let last_key = self.camera_controller.last_key
+                let velocity = [
+                    self.camera_controller.current_velocity.x,
+                    self.camera_controller.current_velocity.y,
+                    self.camera_controller.current_velocity.z,
+                ];
+                let last_key = self
+                    .camera_controller
+                    .last_key
                     .map(|k| format!("{:?}", k))
                     .unwrap_or_else(|| "None".to_string());
-                
-                js_update_debug_info(&position, &orientation, &last_key, self.camera_controller.fps, self.config.width as f32, self.config.height as f32, &velocity);
+
+                js_update_debug_info(
+                    &position,
+                    &orientation,
+                    &last_key,
+                    self.camera_controller.fps,
+                    self.config.width as f32,
+                    self.config.height as f32,
+                    &velocity,
+                );
             }
-            
+
             // Update profiling info independently when profiling is visible
             if self.camera_controller.show_profiling {
                 if let Some(latest_sample) = self.profiler.get_latest_sample() {
@@ -717,11 +798,11 @@ impl<'a> State<'a> {
                         latest_sample.gpu_time_ms.unwrap_or(0.0),
                         latest_sample.update_time_ms,
                         latest_sample.render_encode_time_ms,
-                        self.profiler.is_gpu_timing_supported()
+                        self.profiler.is_gpu_timing_supported(),
                     );
                 }
             }
-            
+
             // Update FPS counter
             js_update_fps_counter(self.camera_controller.fps, self.camera_controller.show_fps);
         }
@@ -801,23 +882,22 @@ impl<'a> State<'a> {
         // End GPU timing and resolve queries
         self.profiler.end_gpu_timing(&mut encoder);
         self.profiler.resolve_gpu_timing(&mut encoder);
-        
+
         // Finish staging belt before submitting commands
         self.staging_belt.finish();
-        
+
         self.profiler.end_render_encode();
-        
+
         self.queue.submit(std::iter::once(encoder.finish()));
-        
+
         // Try to read GPU timing results from previous frames
         self.profiler.try_read_gpu_timing(&self.device, &self.queue);
-        
+
         // Recall staging belt after submission to reuse buffers
         self.staging_belt.recall();
-        
+
         self.profiler.end_frame();
-        
-        
+
         output.present();
 
         Ok(())
@@ -831,7 +911,7 @@ struct App {
 
 impl Default for App {
     fn default() -> Self {
-        Self { 
+        Self {
             state: Rc::new(RefCell::new(None)),
             window: None,
         }
@@ -989,7 +1069,6 @@ pub fn set_debug_spin(value: f32) {
     }
 }
 
-
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn set_debug_ray_steps(value: f32) {
@@ -1008,7 +1087,7 @@ pub fn run() {
         if #[cfg(target_arch = "wasm32")] {
             std::panic::set_hook(Box::new(console_error_panic_hook::hook));
             console_log::init_with_level(log::Level::Warn).expect("Couldn't initialize logger");
-            
+
             // Initialize global debug parameters for WASM
             unsafe {
                 DEBUG_PARAMS = Some(std::sync::Arc::new(std::sync::Mutex::new(DebugParams {
@@ -1025,10 +1104,12 @@ pub fn run() {
     }
 
     println!("{}", simulation::get_placeholder_string());
-    
+
     #[cfg(target_arch = "wasm32")]
-    web_sys::console::log_1(&"🕳️ BLACK HOLE SIMULATOR LOADED! Press ? to toggle help overlay.".into());
-    
+    web_sys::console::log_1(
+        &"🕳️ BLACK HOLE SIMULATOR LOADED! Press ? to toggle help overlay.".into(),
+    );
+
     #[cfg(not(target_arch = "wasm32"))]
     println!("🕳️ BLACK HOLE SIMULATOR LOADED! Press ? for help.");
 
@@ -1036,4 +1117,3 @@ pub fn run() {
     let mut app = App::default();
     event_loop.run_app(&mut app).unwrap();
 }
-

@@ -126,7 +126,11 @@ impl Texture {
             mipmap_filter: wgpu::FilterMode::Nearest,
             ..Default::default()
         });
-        
-        Ok(Self { texture, view, sampler })
+
+        Ok(Self {
+            texture,
+            view,
+            sampler,
+        })
     }
 }

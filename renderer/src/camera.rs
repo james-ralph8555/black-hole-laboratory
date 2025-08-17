@@ -24,11 +24,7 @@ pub struct Camera {
 }
 
 impl Camera {
-    pub fn new<
-        V: Into<Point3<f32>>,
-        Y: Into<Point3<f32>>,
-        U: Into<Vector3<f32>>,
-    >(
+    pub fn new<V: Into<Point3<f32>>, Y: Into<Point3<f32>>, U: Into<Vector3<f32>>>(
         eye: V,
         target: Y,
         up: U,
@@ -72,13 +68,13 @@ pub struct CameraUniform {
     pub _padding3: f32,
     pub camera_up: [f32; 3],
     pub _padding4: f32,
-    pub show_stars: f32,  // bool as f32 (1.0 or 0.0)
-    pub show_grid: f32,   // bool as f32 (1.0 or 0.0)
-    pub show_help: f32,   // bool as f32 (1.0 or 0.0)
+    pub show_stars: f32, // bool as f32 (1.0 or 0.0)
+    pub show_grid: f32,  // bool as f32 (1.0 or 0.0)
+    pub show_help: f32,  // bool as f32 (1.0 or 0.0)
     pub aspect_ratio: f32,
     pub render_width: f32,
     pub render_height: f32,
-    pub _padding5: [f32; 2],  // Maintain 16-byte alignment
+    pub _padding5: [f32; 2], // Maintain 16-byte alignment
 }
 
 impl CameraUniform {
@@ -98,37 +94,53 @@ impl CameraUniform {
             _padding4: 0.0,
             show_stars: 1.0,
             show_grid: 0.0,
-            show_help: 0.0,  // Start with help hidden
-            aspect_ratio: 16.0 / 9.0,  // Default aspect ratio
+            show_help: 0.0,           // Start with help hidden
+            aspect_ratio: 16.0 / 9.0, // Default aspect ratio
             render_width: 1920.0,
             render_height: 1080.0,
             _padding5: [0.0; 2],
         }
     }
 
-    pub fn update_view_proj(&mut self, camera: &Camera, show_stars: bool, show_grid: bool, show_help: bool) {
-        self.update_view_proj_with_resolution(camera, show_stars, show_grid, show_help, 1920.0, 1080.0);
+    pub fn update_view_proj(
+        &mut self,
+        camera: &Camera,
+        show_stars: bool,
+        show_grid: bool,
+        show_help: bool,
+    ) {
+        self.update_view_proj_with_resolution(
+            camera, show_stars, show_grid, show_help, 1920.0, 1080.0,
+        );
     }
 
-    pub fn update_view_proj_with_resolution(&mut self, camera: &Camera, show_stars: bool, show_grid: bool, show_help: bool, width: f32, height: f32) {
+    pub fn update_view_proj_with_resolution(
+        &mut self,
+        camera: &Camera,
+        show_stars: bool,
+        show_grid: bool,
+        show_help: bool,
+        width: f32,
+        height: f32,
+    ) {
         self.view_proj = camera.build_view_projection_matrix().into();
-        
+
         // Update camera vectors for ray tracing
         self.camera_pos = camera.eye.into();
         let forward = (camera.target - camera.eye).normalize();
         let right = forward.cross(camera.up).normalize();
         let up = right.cross(forward).normalize();
-        
+
         self.camera_forward = forward.into();
         self.camera_right = right.into();
         self.camera_up = up.into();
         self.fovy = camera.fovy;
-        
+
         // Update toggle states
         self.show_stars = if show_stars { 1.0 } else { 0.0 };
         self.show_grid = if show_grid { 1.0 } else { 0.0 };
         self.show_help = if show_help { 1.0 } else { 0.0 };
-        
+
         // Update rendering resolution and aspect ratio
         self.aspect_ratio = width / height;
         self.render_width = width;
@@ -181,7 +193,7 @@ impl CameraController {
     pub fn new(speed: f32) -> Self {
         let initial_yaw = 270.0; // 270° looks towards -Z (black hole at origin from camera at -Z)
         let initial_pitch = 0.0;
-        
+
         Self {
             amount_left: 0.0,
             amount_right: 0.0,
@@ -191,8 +203,8 @@ impl CameraController {
             amount_down: 0.0,
             mousewheel_forward: 0.0,
             speed,
-            max_speed: speed * 3.0,  // Maximum speed is 3x base speed
-            acceleration: speed * 5.0,  // Acceleration rate
+            max_speed: speed * 3.0,    // Maximum speed is 3x base speed
+            acceleration: speed * 5.0, // Acceleration rate
             current_velocity: Vector3::zero(),
             sensitivity: 0.1,
             yaw: initial_yaw,
@@ -206,8 +218,8 @@ impl CameraController {
             touch_look_start_pos: None,
             show_stars: true,
             show_grid: false,
-            show_help: false,  // Start with help hidden (flash message shows instead)
-            show_fps: false,   // Start with FPS counter hidden
+            show_help: false, // Start with help hidden (flash message shows instead)
+            show_fps: false,  // Start with FPS counter hidden
             show_profiling: false, // Start with profiling hidden
             last_key: None,
             frame_count: 0,
@@ -235,17 +247,18 @@ impl CameraController {
         self.yaw = self.initial_yaw;
         self.pitch = self.initial_pitch;
         self.current_velocity = Vector3::zero();
-        
+
         // Update camera target to match the reset orientation
         let yaw_rad = self.yaw.to_radians();
         let pitch_rad = self.pitch.to_radians();
-        
+
         let forward = Vector3::new(
             yaw_rad.cos() * pitch_rad.cos(),
             pitch_rad.sin(),
             yaw_rad.sin() * pitch_rad.cos(),
-        ).normalize();
-        
+        )
+        .normalize();
+
         camera.target = camera.eye + forward;
         camera.up = Vector3::unit_y();
     }
@@ -298,11 +311,11 @@ impl CameraController {
     fn check_triple_tap(&mut self, timestamp: f64) -> bool {
         // Add current tap time
         self.last_tap_times.push(timestamp);
-        
+
         // Keep only recent taps (within threshold)
         let cutoff_time = timestamp - self.triple_tap_threshold;
         self.last_tap_times.retain(|&t| t > cutoff_time);
-        
+
         // Check if we have 3 or more recent taps
         if self.last_tap_times.len() >= 3 {
             self.last_tap_times.clear(); // Clear to prevent multiple resets
@@ -312,13 +325,17 @@ impl CameraController {
         }
     }
 
-    pub fn process_touch(&mut self, touch: &winit::event::Touch, window_size: winit::dpi::PhysicalSize<u32>) {
+    pub fn process_touch(
+        &mut self,
+        touch: &winit::event::Touch,
+        window_size: winit::dpi::PhysicalSize<u32>,
+    ) {
         let pos = vec2(touch.location.x, touch.location.y);
         let half_width = window_size.width as f64 / 2.0;
 
         match touch.phase {
             winit::event::TouchPhase::Started => {
-                // Check for triple tap 
+                // Check for triple tap
                 let timestamp = {
                     #[cfg(target_arch = "wasm32")]
                     {
@@ -332,19 +349,21 @@ impl CameraController {
                             .as_secs_f64()
                     }
                 };
-                
+
                 if self.check_triple_tap(timestamp) {
                     self.reset_requested = true;
                     return; // Don't process as regular touch if it's a triple tap
                 }
-                
-                if pos.x < half_width { // Left side: movement
+
+                if pos.x < half_width {
+                    // Left side: movement
                     if self.touch_joystick_id.is_none() {
                         self.touch_joystick_id = Some(touch.id);
                         self.touch_joystick_center = Some(pos);
                         self.touch_joystick_current = Some(pos);
                     }
-                } else { // Right side: look
+                } else {
+                    // Right side: look
                     if self.touch_look_id.is_none() {
                         self.touch_look_id = Some(touch.id);
                         self.touch_look_start_pos = Some(pos);
@@ -377,13 +396,17 @@ impl CameraController {
     }
 
     pub fn process_keyboard(&mut self, key: KeyCode, state: ElementState) -> bool {
-        let amount = if state == ElementState::Pressed { 1.0 } else { 0.0 };
-        
+        let amount = if state == ElementState::Pressed {
+            1.0
+        } else {
+            0.0
+        };
+
         // Track last pressed key for debug display
         if state == ElementState::Pressed {
             self.last_key = Some(key);
         }
-        
+
         match key {
             KeyCode::KeyW | KeyCode::ArrowUp => {
                 self.amount_forward = amount;
@@ -467,7 +490,7 @@ impl CameraController {
 
     pub fn update_camera(&mut self, camera: &mut Camera, dt: std::time::Duration) {
         let dt = dt.as_secs_f32();
-        
+
         // Check for reset request first
         if self.check_and_clear_reset_request() {
             self.reset_camera(camera);
@@ -481,12 +504,13 @@ impl CameraController {
         // Standard FPS camera: yaw=0° looks down +X axis, yaw=90° looks down -Z axis
         let yaw_rad = self.yaw.to_radians();
         let pitch_rad = self.pitch.to_radians();
-        
+
         let forward = Vector3::new(
             yaw_rad.cos() * pitch_rad.cos(),
             pitch_rad.sin(),
             yaw_rad.sin() * pitch_rad.cos(),
-        ).normalize();
+        )
+        .normalize();
 
         let right = forward.cross(Vector3::unit_y()).normalize();
         let up = right.cross(forward).normalize();
@@ -505,7 +529,9 @@ impl CameraController {
         // Handle touch input for movement
         let mut touch_fwd = 0.0;
         let mut touch_strafe = 0.0;
-        if let (Some(center), Some(current)) = (self.touch_joystick_center, self.touch_joystick_current) {
+        if let (Some(center), Some(current)) =
+            (self.touch_joystick_center, self.touch_joystick_current)
+        {
             let delta = current - center;
             let joystick_radius = 100.0; // Virtual joystick size in pixels
             touch_fwd = (-delta.y / joystick_radius).clamp(-1.0, 1.0) as f32;
@@ -517,21 +543,21 @@ impl CameraController {
         let move_forward = self.amount_forward + touch_fwd + (self.mousewheel_forward * 0.1);
         let move_strafe = (self.amount_right - self.amount_left) + touch_strafe;
         let move_vertical = self.amount_up - self.amount_down;
-        
+
         // Calculate target velocity based on input
         let target_velocity = Vector3::new(
             move_strafe * self.max_speed,
             move_vertical * self.max_speed,
-            (self.amount_backward - move_forward) * self.max_speed
+            (self.amount_backward - move_forward) * self.max_speed,
         );
-        
+
         // Apply acceleration towards target velocity
         let velocity_diff = target_velocity - self.current_velocity;
         let velocity_diff_magnitude = velocity_diff.magnitude();
-        
+
         if velocity_diff_magnitude > 0.01 {
             let acceleration_step = velocity_diff.normalize() * self.acceleration * dt;
-            
+
             // Limit acceleration step to not overshoot target
             if acceleration_step.magnitude() > velocity_diff_magnitude {
                 self.current_velocity = target_velocity;
@@ -541,17 +567,17 @@ impl CameraController {
         } else {
             self.current_velocity = target_velocity;
         }
-        
+
         // Apply velocity with dampening when no input
         if target_velocity.magnitude() < 0.01 {
             self.current_velocity *= 0.95; // Gradual slowdown when no input
         }
-        
+
         // Move camera using current velocity in world space
         camera.eye += forward * self.current_velocity.z * dt;
         camera.eye += right * self.current_velocity.x * dt;
         camera.eye += up * self.current_velocity.y * dt;
-        
+
         // Decay mousewheel input
         self.mousewheel_forward *= 0.9;
 
@@ -559,5 +585,4 @@ impl CameraController {
         camera.target = camera.eye + forward;
         camera.up = up;
     }
-
 }

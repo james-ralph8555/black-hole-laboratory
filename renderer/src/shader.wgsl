@@ -32,7 +32,10 @@ struct BlackHoleUniform {
     effective_horizon_sq: f32,
     frame_drag_coefficient: f32,
     escape_distance_sq: f32,
-    _padding2: vec4<f32>,
+    disk_inner_radius: f32,
+    disk_outer_radius: f32,
+    disk_temperature: f32,
+    disk_opacity: f32,
 };
 @group(1) @binding(0)
 var<uniform> black_hole: BlackHoleUniform;
@@ -76,6 +79,63 @@ fn schwarzschild_radius(mass: f32) -> f32 {
     return 2.0 * mass;
 }
 
+// Dark orange color for accretion disk
+fn get_disk_color() -> vec3<f32> {
+    return vec3<f32>(0.8, 0.4, 0.1); // Dark orange
+}
+
+// Calculate ray-disk intersection (simple flat disk)
+fn intersect_disk(ray_pos: vec3<f32>, ray_dir: vec3<f32>) -> vec2<f32> {
+    // Disk is in the x-z plane (y = 0)
+    let disk_normal = vec3<f32>(0.0, 1.0, 0.0);
+    let disk_center = black_hole.position;
+    
+    let denom = dot(ray_dir, disk_normal);
+    
+    // Ray parallel to disk
+    if (abs(denom) < 0.0001) {
+        return vec2<f32>(-1.0, -1.0);
+    }
+    
+    let t = dot(disk_center - ray_pos, disk_normal) / denom;
+    
+    // Intersection behind ray origin
+    if (t < 0.0) {
+        return vec2<f32>(-1.0, -1.0);
+    }
+    
+    let hit_point = ray_pos + ray_dir * t;
+    let disk_radius = distance(hit_point, disk_center);
+    
+    // Check if intersection is within disk bounds
+    if (disk_radius >= black_hole.disk_inner_radius && disk_radius <= black_hole.disk_outer_radius) {
+        return vec2<f32>(t, disk_radius);
+    }
+    
+    return vec2<f32>(-1.0, -1.0);
+}
+
+// Calculate disk emission at a given radius
+fn calculate_disk_emission(radius: f32, view_dir: vec3<f32>, hit_point: vec3<f32>) -> vec3<f32> {
+    let inner_r = black_hole.disk_inner_radius;
+    let outer_r = black_hole.disk_outer_radius;
+    
+    // Brightness profile - brighter closer to black hole
+    let r_norm = (radius - inner_r) / (outer_r - inner_r);
+    let brightness = 1.0 - 0.4 * r_norm;
+    
+    // Base color - dark orange
+    var color = get_disk_color();
+    
+    // Distance-based intensity 
+    let intensity = brightness * 0.8;
+    
+    // Add some turbulence for realism
+    let turbulence = 0.7 + 0.3 * sin(radius * 6.0 + hit_point.x * 2.0) * sin(hit_point.z * 3.0);
+    
+    return color * intensity * turbulence;
+}
+
 // Relativistic geodesic ray tracing using Kerr metric approximation
 fn trace_ray(start_pos: vec3<f32>, ray_dir: vec3<f32>, mass: f32, max_steps: i32) -> vec3<f32> {
     var pos = start_pos;
@@ -94,6 +154,16 @@ fn trace_ray(start_pos: vec3<f32>, ray_dir: vec3<f32>, mass: f32, max_steps: i32
         let r_sq = dot(to_bh, to_bh);
 
         let step_size = clamp(sqrt(r_sq) * 0.1, 0.005, 0.2);
+        
+        // Check for disk intersection at current position
+        let disk_intersection = intersect_disk(pos, dir);
+        if (disk_intersection.x > 0.0 && disk_intersection.x < step_size) {
+            let hit_point = pos + dir * disk_intersection.x;
+            let disk_emission = calculate_disk_emission(disk_intersection.y, -dir, hit_point);
+            
+            // Return disk color directly - no background blending
+            return disk_emission;
+        }
         
         // Efficient horizon check using squared distance
         if (r_sq <= effective_horizon_sq) {

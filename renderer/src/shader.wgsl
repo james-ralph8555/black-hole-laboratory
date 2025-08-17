@@ -217,9 +217,32 @@ fn calculate_disk_emission(radius: f32, view_dir: vec3<f32>, hit_point: vec3<f32
     }
     
     // Combine temperature brightness with matter density
-    let final_intensity = temperature_brightness * matter_density * 0.9;
+    let base_intensity = temperature_brightness * matter_density;
     
-    return color * final_intensity;
+    // Create bloom effect for hottest regions (fusion-level temperatures!)
+    let bloom_threshold = 0.7; // Only brightest regions bloom
+    let bloom_intensity = max(0.0, (temp_factor - bloom_threshold) / (1.0 - bloom_threshold));
+    
+    // Searing bloom multiplier - fusion temperatures are incredibly bright
+    let bloom_multiplier = 1.0 + bloom_intensity * 3.0; // Up to 4x brighter for hottest regions
+    
+    // Add bloom glow that extends beyond the base color
+    let final_intensity = base_intensity * bloom_multiplier;
+    
+    // For the hottest regions, add extra white light to simulate overwhelming brightness
+    let searing_white = vec3<f32>(1.0, 1.0, 1.0) * bloom_intensity * 0.5;
+    
+    let base_color = (color * final_intensity) + searing_white;
+    
+    // Simple bloom effect - add a soft glow around bright areas
+    if (final_intensity > 0.8) {
+        // Create a radial glow effect for very bright pixels
+        let glow_strength = (final_intensity - 0.8) / 0.2; // 0-1 range for bright pixels
+        let glow_color = base_color * glow_strength * 0.3; // Soft glow
+        return base_color + glow_color;
+    }
+    
+    return base_color;
 }
 
 // Relativistic geodesic ray tracing using Kerr metric approximation

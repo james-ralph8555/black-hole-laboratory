@@ -133,6 +133,7 @@ struct State<'a> {
     size: winit::dpi::PhysicalSize<u32>,
     window: Arc<Window>,
     render_pipeline: wgpu::RenderPipeline,
+    debug_render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
@@ -150,6 +151,24 @@ struct State<'a> {
     sky_texture: texture::Texture,
     sky_bind_group: wgpu::BindGroup,
     background_mode: u32,
+    // HDR and bloom textures
+    hdr_texture: wgpu::Texture,
+    hdr_view: wgpu::TextureView,
+    bloom_texture: wgpu::Texture,
+    bloom_view: wgpu::TextureView,
+    bloom_temp_texture: wgpu::Texture,
+    bloom_temp_view: wgpu::TextureView,
+    // Bloom pipelines (fragment shader based)
+    bloom_extract_pipeline: wgpu::RenderPipeline,
+    bloom_blur_h_pipeline: wgpu::RenderPipeline,
+    bloom_blur_v_pipeline: wgpu::RenderPipeline,
+    tone_mapping_pipeline: wgpu::RenderPipeline,
+    // Bloom bind groups
+    bloom_extract_bind_group: wgpu::BindGroup,
+    bloom_blur_bind_group: wgpu::BindGroup,
+    tone_mapping_bind_group: wgpu::BindGroup,
+    // Texture sampler for bloom operations
+    texture_sampler: wgpu::Sampler,
     // Debug parameters
     debug_fov: f32,
     debug_mass: f32,
@@ -509,8 +528,60 @@ impl<'a> State<'a> {
                 push_constant_ranges: &[],
             });
 
+        // Create HDR texture for rendering - use Rgba16Float for true HDR
+        let hdr_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("HDR Texture"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba16Float, // HDR format for extended range
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let hdr_view = hdr_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        // Create bloom texture for bright pixel extraction and blur
+        let bloom_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Bloom Texture"),
+            size: wgpu::Extent3d {
+                width: (width / 2).max(1), // Half resolution for performance, but at least 1
+                height: (height / 2).max(1),
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba16Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let bloom_view = bloom_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        // Create temporary bloom texture for ping-pong blur
+        let bloom_temp_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Bloom Temp Texture"),
+            size: wgpu::Extent3d {
+                width: (width / 2).max(1),
+                height: (height / 2).max(1),
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba16Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let bloom_temp_view = bloom_temp_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        // Create HDR render pipeline (renders to HDR texture)
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
+            label: Some("HDR Render Pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
@@ -522,7 +593,7 @@ impl<'a> State<'a> {
                 module: &shader,
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: config.format,
+                    format: wgpu::TextureFormat::Rgba16Float, // HDR format
                     blend: Some(wgpu::BlendState::REPLACE),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
@@ -546,6 +617,340 @@ impl<'a> State<'a> {
             multiview: None,
         });
 
+        // Create debug render pipeline (renders to surface)
+        let debug_render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Debug Render Pipeline"),
+            layout: Some(&render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: "vs_main",
+                buffers: &[Vertex::desc()],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: "fs_main",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: config.format, // Surface format
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+        });
+
+        // Create bloom fragment shaders
+        let bloom_fragment_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Bloom Fragment Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("bloom_fragment.wgsl").into()),
+        });
+
+        // Create tone mapping shader
+        let tone_mapping_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Tone Mapping Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("tone_mapping.wgsl").into()),
+        });
+
+        // Create bloom bind group layout for fragment shaders
+        let bloom_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+            label: Some("Bloom Bind Group Layout"),
+        });
+
+        // Create bloom extract render pipeline
+        let bloom_extract_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Bloom Extract Pipeline Layout"),
+            bind_group_layouts: &[&bloom_bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        let bloom_extract_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Bloom Extract Pipeline"),
+            layout: Some(&bloom_extract_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &bloom_fragment_shader,
+                entry_point: "vs_main",
+                buffers: &[Vertex::desc()],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &bloom_fragment_shader,
+                entry_point: "extract_bright_pixels",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: wgpu::TextureFormat::Rgba16Float,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+        });
+
+        // Create bloom blur horizontal pipeline
+        let bloom_blur_h_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Bloom Blur Horizontal Pipeline"),
+            layout: Some(&bloom_extract_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &bloom_fragment_shader,
+                entry_point: "vs_main",
+                buffers: &[Vertex::desc()],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &bloom_fragment_shader,
+                entry_point: "blur_horizontal",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: wgpu::TextureFormat::Rgba16Float,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+        });
+
+        // Create bloom blur vertical pipeline
+        let bloom_blur_v_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Bloom Blur Vertical Pipeline"),
+            layout: Some(&bloom_extract_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &bloom_fragment_shader,
+                entry_point: "vs_main",
+                buffers: &[Vertex::desc()],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &bloom_fragment_shader,
+                entry_point: "blur_vertical",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: wgpu::TextureFormat::Rgba16Float,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+        });
+
+        // Create tone mapping bind group layout
+        let tone_mapping_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+            label: Some("Tone Mapping Bind Group Layout"),
+        });
+
+        // Create tone mapping pipeline layout
+        let tone_mapping_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Tone Mapping Pipeline Layout"),
+            bind_group_layouts: &[&tone_mapping_bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        // Create tone mapping render pipeline
+        let tone_mapping_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Tone Mapping Pipeline"),
+            layout: Some(&tone_mapping_layout),
+            vertex: wgpu::VertexState {
+                module: &tone_mapping_shader,
+                entry_point: "vs_main",
+                buffers: &[Vertex::desc()],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &tone_mapping_shader,
+                entry_point: "fs_main",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: config.format, // Final surface format
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+        });
+
+        // Create texture sampler for tone mapping
+        let texture_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        });
+
+        // Create bloom extract bind group
+        let bloom_extract_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &bloom_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&hdr_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&texture_sampler),
+                },
+            ],
+            label: Some("Bloom Extract Bind Group"),
+        });
+
+        // Create bloom blur bind group (for ping-pong between bloom textures)
+        let bloom_blur_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &bloom_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&bloom_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&texture_sampler),
+                },
+            ],
+            label: Some("Bloom Blur Bind Group"),
+        });
+
+        // Create tone mapping bind group
+        let tone_mapping_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &tone_mapping_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&hdr_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&bloom_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Sampler(&texture_sampler),
+                },
+            ],
+            label: Some("Tone Mapping Bind Group"),
+        });
+
         let mut camera_controller = CameraController::new(4.0);
         camera_controller.set_initial_camera_state(camera.eye, 270.0, 0.0);
 
@@ -566,6 +971,7 @@ impl<'a> State<'a> {
             config,
             size,
             render_pipeline,
+            debug_render_pipeline,
             vertex_buffer,
             index_buffer,
             num_indices,
@@ -583,6 +989,23 @@ impl<'a> State<'a> {
             sky_texture,
             sky_bind_group,
             background_mode, // 0: texture, 1: procedural, 2: none
+            // HDR and bloom textures
+            hdr_texture,
+            hdr_view,
+            bloom_texture,
+            bloom_view,
+            bloom_temp_texture,
+            bloom_temp_view,
+            // Bloom pipelines (fragment shader based)
+            bloom_extract_pipeline,
+            bloom_blur_h_pipeline,
+            bloom_blur_v_pipeline,
+            tone_mapping_pipeline,
+            // Bloom bind groups
+            bloom_extract_bind_group,
+            bloom_blur_bind_group,
+            tone_mapping_bind_group,
+            texture_sampler,
             // Initialize debug parameters
             debug_fov,
             debug_mass,
@@ -664,6 +1087,57 @@ impl<'a> State<'a> {
             self.config.width = width;
             self.config.height = height;
             self.surface.configure(&self.device, &self.config);
+
+            // Recreate HDR texture with new size
+            self.hdr_texture = self.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("HDR Texture"),
+                size: wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba16Float,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::STORAGE_BINDING,
+                view_formats: &[],
+            });
+            self.hdr_view = self.hdr_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+            // Recreate bloom texture with new size (half resolution)
+            self.bloom_texture = self.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("Bloom Texture"),
+                size: wgpu::Extent3d {
+                    width: (width / 2).max(1),
+                    height: (height / 2).max(1),
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba16Float,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            });
+            self.bloom_view = self.bloom_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+            // Recreate bloom temp texture with new size (half resolution)
+            self.bloom_temp_texture = self.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("Bloom Temp Texture"),
+                size: wgpu::Extent3d {
+                    width: (width / 2).max(1),
+                    height: (height / 2).max(1),
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba16Float,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            });
+            self.bloom_temp_view = self.bloom_temp_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
             // Update camera aspect ratio to match new window dimensions
             self.camera
@@ -861,9 +1335,10 @@ impl<'a> State<'a> {
         // Begin GPU timing
         self.profiler.begin_gpu_timing(&mut encoder);
 
+        // Simple direct render to surface (bypassing complex bloom for now)
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
+                label: Some("Direct Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
@@ -882,7 +1357,7 @@ impl<'a> State<'a> {
                 timestamp_writes: None,
             });
 
-            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_pipeline(&self.debug_render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
             render_pass.set_bind_group(1, &self.black_hole_bind_group, &[]);
             render_pass.set_bind_group(2, &self.sky_bind_group, &[]);

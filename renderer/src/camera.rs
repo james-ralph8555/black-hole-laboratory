@@ -176,6 +176,7 @@ pub struct CameraController {
     triple_tap_threshold: f64,
     // Mouselook mode control
     pub mouselook_enabled: bool,
+    pub right_mouse_pressed: bool,
 }
 
 impl CameraController {
@@ -223,6 +224,7 @@ impl CameraController {
             triple_tap_threshold: 0.5, // 500ms between taps
             // Start with mouselook enabled
             mouselook_enabled: true,
+            right_mouse_pressed: false,
         }
     }
 
@@ -261,19 +263,44 @@ impl CameraController {
         }
     }
 
+    pub fn process_mouse_button(&mut self, button: winit::event::MouseButton, state: ElementState) {
+        match button {
+            winit::event::MouseButton::Right => {
+                // Right-click alternative for trackpad users who have issues with always-on mouselook
+                self.right_mouse_pressed = state == ElementState::Pressed;
+                if !self.right_mouse_pressed {
+                    // Reset mouse position when releasing right button to avoid jumps
+                    self.last_mouse_pos = None;
+                }
+            }
+            _ => {}
+        }
+    }
 
     pub fn process_cursor_move(&mut self, pos: winit::dpi::PhysicalPosition<f64>) {
-        if !self.mouselook_enabled {
+        // Enable mouselook either when globally enabled OR when right mouse is pressed (trackpad alternative)
+        let should_look = self.mouselook_enabled || self.right_mouse_pressed;
+        
+        if !should_look {
+            // Still update position even when mouselook is disabled to avoid jumps when re-enabled
+            self.last_mouse_pos = Some(vec2(pos.x, pos.y));
             return;
         }
         
         let current_pos = vec2(pos.x, pos.y);
         if let Some(last_pos) = self.last_mouse_pos {
             let delta = current_pos - last_pos;
-            // Adjust sensitivity for mouse look (inverted left/right)
-            self.yaw -= delta.x as f32 * self.sensitivity;
-            self.pitch -= delta.y as f32 * self.sensitivity;
+            
+            // Add a small threshold to ignore very tiny movements (helps with trackpad noise)
+            // Use a smaller threshold to be more responsive to trackpad input
+            let movement_threshold = 0.1;
+            if delta.magnitude() > movement_threshold {
+                // Adjust sensitivity for mouse look (inverted left/right)
+                self.yaw -= delta.x as f32 * self.sensitivity;
+                self.pitch -= delta.y as f32 * self.sensitivity;
+            }
         }
+        // Always update last position to ensure continuous tracking
         self.last_mouse_pos = Some(current_pos);
     }
 

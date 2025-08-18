@@ -567,6 +567,10 @@ impl<'a> State<'a> {
                     false
                 }
             }
+            WindowEvent::MouseInput { state, button, .. } => {
+                self.camera_controller.process_mouse_button(*button, *state);
+                true
+            }
             WindowEvent::CursorMoved { position, .. } => {
                 self.camera_controller.process_cursor_move(*position);
                 true
@@ -635,7 +639,9 @@ impl<'a> State<'a> {
         self.camera_uniform.background_mode = if self.background_mode == 1 { 1.0 } else { 0.0 };
 
         // Update cursor visibility based on mouselook state
-        self.window.set_cursor_visible(!self.camera_controller.mouselook_enabled);
+        // Hide cursor when mouselook is enabled OR when right mouse is pressed (trackpad mode)
+        let should_hide_cursor = self.camera_controller.mouselook_enabled || self.camera_controller.right_mouse_pressed;
+        self.window.set_cursor_visible(!should_hide_cursor);
 
         // Update debug parameters from global state (WASM) or local state (native)
         #[cfg(target_arch = "wasm32")]

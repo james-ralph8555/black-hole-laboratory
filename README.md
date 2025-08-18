@@ -57,6 +57,7 @@ npm run build
 - **Mouse Wheel** - Move forward/backward
 - **Q/E** - Turn left/right
 - **Mouse Move** - Look around (mouselook enabled by default, desktop)
+- **Right Click** - Hold to look around (trackpad alternative)
 - **Escape** - Toggle mouse lock/unlock
 - **Touch** - Left half: movement joystick, Right half: look around (mobile)
 

@@ -56,7 +56,8 @@ npm run build
 - **Space/Shift** - Move up/down  
 - **Mouse Wheel** - Move forward/backward
 - **Q/E** - Turn left/right
-- **Mouse Drag** - Look around (desktop)
+- **Mouse Move** - Look around (mouselook enabled by default, desktop)
+- **Escape** - Toggle mouse lock/unlock
 - **Touch** - Left half: movement joystick, Right half: look around (mobile)
 
 ### Visual Toggles

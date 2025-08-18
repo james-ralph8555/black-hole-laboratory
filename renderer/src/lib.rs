@@ -567,14 +567,6 @@ impl<'a> State<'a> {
                     false
                 }
             }
-            WindowEvent::MouseInput { state, button, .. } => {
-                if *button == winit::event::MouseButton::Left {
-                    self.camera_controller.process_mouse_button(*state);
-                    true
-                } else {
-                    false
-                }
-            }
             WindowEvent::CursorMoved { position, .. } => {
                 self.camera_controller.process_cursor_move(*position);
                 true
@@ -641,6 +633,9 @@ impl<'a> State<'a> {
             self.config.height as f32
         );
         self.camera_uniform.background_mode = if self.background_mode == 1 { 1.0 } else { 0.0 };
+
+        // Update cursor visibility based on mouselook state
+        self.window.set_cursor_visible(!self.camera_controller.mouselook_enabled);
 
         // Update debug parameters from global state (WASM) or local state (native)
         #[cfg(target_arch = "wasm32")]

@@ -151,7 +151,6 @@ pub struct CameraController {
     sensitivity: f32,
     pub yaw: f32,
     pub pitch: f32,
-    mouse_pressed: bool,
     last_mouse_pos: Option<Vector2<f64>>,
     touch_joystick_id: Option<u64>,
     touch_joystick_center: Option<Vector2<f64>>,
@@ -175,6 +174,8 @@ pub struct CameraController {
     // Triple tap detection for mobile
     last_tap_times: Vec<f64>,
     triple_tap_threshold: f64,
+    // Mouselook mode control
+    pub mouselook_enabled: bool,
 }
 
 impl CameraController {
@@ -197,7 +198,6 @@ impl CameraController {
             sensitivity: 0.1,
             yaw: initial_yaw,
             pitch: initial_pitch,
-            mouse_pressed: false,
             last_mouse_pos: None,
             touch_joystick_id: None,
             touch_joystick_center: None,
@@ -221,6 +221,8 @@ impl CameraController {
             // Triple tap detection for mobile
             last_tap_times: Vec::new(),
             triple_tap_threshold: 0.5, // 500ms between taps
+            // Start with mouselook enabled
+            mouselook_enabled: true,
         }
     }
 
@@ -259,24 +261,17 @@ impl CameraController {
         }
     }
 
-    pub fn process_mouse_button(&mut self, state: ElementState) {
-        if state == ElementState::Pressed {
-            self.mouse_pressed = true;
-        } else {
-            self.mouse_pressed = false;
-            self.last_mouse_pos = None;
-        }
-    }
 
     pub fn process_cursor_move(&mut self, pos: winit::dpi::PhysicalPosition<f64>) {
-        if !self.mouse_pressed {
+        if !self.mouselook_enabled {
             return;
         }
+        
         let current_pos = vec2(pos.x, pos.y);
         if let Some(last_pos) = self.last_mouse_pos {
             let delta = current_pos - last_pos;
-            // Adjust sensitivity for mouse look
-            self.yaw += delta.x as f32 * self.sensitivity;
+            // Adjust sensitivity for mouse look (inverted left/right)
+            self.yaw -= delta.x as f32 * self.sensitivity;
             self.pitch -= delta.y as f32 * self.sensitivity;
         }
         self.last_mouse_pos = Some(current_pos);
@@ -458,6 +453,17 @@ impl CameraController {
                 // Reset camera to initial position
                 if state == ElementState::Pressed {
                     self.reset_requested = true;
+                }
+                true
+            }
+            KeyCode::Escape => {
+                // Toggle mouselook mode
+                if state == ElementState::Pressed {
+                    self.mouselook_enabled = !self.mouselook_enabled;
+                    // Reset mouse position when enabling mouselook to avoid jumps
+                    if self.mouselook_enabled {
+                        self.last_mouse_pos = None;
+                    }
                 }
                 true
             }

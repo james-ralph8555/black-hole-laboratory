@@ -14,3 +14,7 @@ debug = 2  # Enable DWARF full debug info for flame graphs
 # Production profile without debug info (smaller binary size)
 [profile.release]
 debug = false
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

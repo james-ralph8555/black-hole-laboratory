@@ -222,8 +222,8 @@ impl CameraController {
             // Triple tap detection for mobile
             last_tap_times: Vec::new(),
             triple_tap_threshold: 0.5, // 500ms between taps
-            // Start with mouselook enabled
-            mouselook_enabled: true,
+            // Start with mouselook disabled, user can enable with Escape
+            mouselook_enabled: false,
             right_mouse_pressed: false,
         }
     }

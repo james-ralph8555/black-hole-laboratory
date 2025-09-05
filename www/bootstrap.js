@@ -1,6 +1,49 @@
 // Import the initializer and the function you want to run
 import init, { run } from './pkg/index.js';
 
+function checkWebGLSupport() {
+  try {
+    // Use a temporary canvas so we don't touch the main one
+    const testCanvas = document.createElement('canvas');
+    // Try WebGL2 first (required by wgpu's GL backend)
+    const gl2 = testCanvas.getContext('webgl2', { alpha: false, antialias: true });
+    if (gl2) {
+      return { ok: true };
+    }
+    // Fall back to WebGL1 presence check to provide a clearer message
+    const gl1 = testCanvas.getContext('webgl') || testCanvas.getContext('experimental-webgl');
+    if (gl1) {
+      return { ok: false, reason: 'WebGL 2 is not available (only WebGL 1 detected).' };
+    }
+    return { ok: false, reason: 'WebGL is not available in this browser.' };
+  } catch (e) {
+    return { ok: false, reason: `WebGL check failed: ${e}` };
+  }
+}
+
+function showFatalError(message) {
+  const loading = document.getElementById('loading-screen');
+  if (!loading) return;
+  const title = loading.querySelector('.loading-title');
+  const subtitle = loading.querySelector('.loading-subtitle');
+  const spinner = loading.querySelector('.loading-spinner');
+  const text = loading.querySelector('.loading-text');
+
+  if (spinner) spinner.style.display = 'none';
+  if (title) title.textContent = 'GRAVITYLENS';
+  if (subtitle) subtitle.textContent = 'Unable to start renderer';
+  if (text) {
+    text.style.animation = 'none';
+    text.style.color = '#ff6b6b';
+    text.textContent = message + ' Please enable hardware acceleration and WebGL, then reload. Chrome/Firefox are recommended.';
+  }
+}
+
+function isControlFlowException(e) {
+  const msg = (e && e.message) ? e.message : String(e || '');
+  return msg.includes('Using exceptions for control flow');
+}
+
 function setupCanvas() {
   const canvas = document.getElementById('wasm-canvas');
   if (!canvas) return;
@@ -316,6 +359,15 @@ async function main() {
   setupCanvas();
   setupHelpOverlay();
   
+  // Check WebGL support up front to avoid cryptic panics later
+  const webgl = checkWebGLSupport();
+  if (!webgl.ok) {
+    const base = 'Failed to create WebGL context: WebGL is currently disabled or unavailable.';
+    const reason = webgl.reason ? ` Details: ${webgl.reason}` : '';
+    showFatalError(base + reason);
+    return;
+  }
+
   updateLoadingText('Loading WebAssembly module...');
   
   // Wait for the wasm module to be compiled and initialized
@@ -340,9 +392,25 @@ async function main() {
 
   updateLoadingText('Starting renderer...');
 
-  // Now that initialization is complete, it's safe to call our function
+  // Now that initialization is complete, try to start the renderer
   // The WASM renderer will call hideLoadingScreen() when it's ready
-  run();
+  try {
+    run();
+  } catch (e) {
+    // Some WASM/Winit paths intentionally throw an exception for control flow.
+    if (isControlFlowException(e)) {
+      // Ignore silently; not an actual failure.
+      return;
+    }
+    // Show a friendly message for real failures
+    const msg = (e && e.message) ? e.message : String(e);
+    showFatalError(`Renderer initialization failed: ${msg}`);
+    console.error(e);
+  }
 }
 
-main().catch(console.error);
+main().catch((e) => {
+  // Filter out benign control-flow exceptions so they don't spam console/UI
+  if (isControlFlowException(e)) return;
+  console.error(e);
+});
